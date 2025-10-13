@@ -1,0 +1,33 @@
+{
+  "configurations": [
+    {
+      "name": "Attach",
+      "port": 9229,
+      "request": "attach",
+      "skipFiles": ["<node_internals>/**"],
+      "type": "node",
+      "timeout": 30000
+    },
+    {
+      "name": "tsx",
+      "type": "node",
+      "request": "launch",
+
+      // Debug current file in VSCode
+      "program": "src/test.ts",
+
+      /*
+       * Path to tsx binary
+       * Assuming locally installed
+       */
+      "runtimeExecutable": "tsx",
+
+      /*
+       * Open terminal when debugging starts (Optional)
+       * Useful to see console.logs
+       */
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ]
+}

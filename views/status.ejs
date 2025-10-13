@@ -1,0 +1,92 @@
+<%- include('header', { title: 'SC Stats status' }) %>
+
+  <div class="stats">
+    <div class="stat">
+      <h2>W3C Matches Found</h2>
+      <p><%= w3ChampionsMatchesFound %></p>
+    </div>
+    <div class="stat">
+      <h2>W3C Matches Downloaded</h2>
+      <p><%= w3ChampionsMatchesDownloaded %></p>
+    </div>
+    <div class="stat">
+      <h2>Last W3C match</h2>
+      <p>ID: <%= lastW3championsMatch.id %></p>
+      <p>Time: <%= new Date(lastW3championsMatch.time).toLocaleString() %></p>
+    </div>
+
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <h2>Matches Parsed</h2>
+      <p>
+        <span><%= matchesParsed %></span>/<span class="error"><%= matchesErrors %></span></span></p>
+    </div>
+  </div>
+
+  <div class="data-keys">
+    <h2>Wiki Data Keys</h2>
+    <div class="chip-container">
+      <% dataKeys.forEach(key => { %>
+        <div class="chip"><%= key %></div>
+      <% }) %>
+    </div>
+    <h3>Key content</h3>
+    <pre id="key-content"></pre>
+  </div>
+
+    <style>
+    .stats { display: flex; gap: 2rem; margin-bottom: 2rem; }
+    .stat {
+      background-color: #1e1e1e;
+      padding: 1rem 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    .stat h2 { margin: 0 0 0.5rem 0; font-size: 1.2rem; color: #ccc; }
+    .stat p { margin: 0; font-size: 1.5rem; font-weight: bold; color: #fff; }
+    .error {
+      color: #d84040;
+    }
+
+    .data-keys {
+      background-color: #1e1e1e;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+    }
+    .data-keys h2 { margin-bottom: 0.5rem; color: #ccc; }
+    .chip-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .data-keys .chip {
+      cursor: pointer;
+    }
+    .chip {
+      background-color: #2a2a2a;
+      color: #e0e0e0;
+      padding: 0.3rem 0.8rem;
+      border-radius: 16px;
+      font-size: 0.9rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    }
+  </style>
+
+  <script>
+    document.addEventListener('click', async (e) => {
+      if (e.target.classList.contains('chip')) {
+        const key = e.target.textContent;
+        const content = document.querySelector('#key-content');
+
+        const res = await fetch(`/status/dataKey/${key}`);
+        const dataKeysContent = await res.json();
+
+        content.textContent = JSON.stringify(dataKeysContent, null, 2);
+      }
+    })
+  </script>
+
+<%- include('footer') %>

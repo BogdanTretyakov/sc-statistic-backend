@@ -1,0 +1,136 @@
+<%- include('header', { title: 'SC Stats Logs' }) %>
+
+<div id="log-container">
+  <!-- Фильтры по type -->
+  <div id="type-filters"></div>
+
+  <!-- Фильтры по context -->
+  <div id="context-filters"></div>
+
+  <!-- Таблица -->
+  <table border="1" style="width: 100%" id="log-table">
+    <thead>
+      <tr>
+        <th width="60">Type</th>
+        <th width="130">Context</th>
+        <th width="140">Time</th>
+        <th>Message</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+(function() {
+  const types = ['log', 'warn', 'error', 'fatal', 'verbose', 'debug'];
+  let selectedTypes = JSON.parse(localStorage.getItem('selectedTypes')) || types.slice();
+  let knownContexts = [];
+  let selectedContexts = [];
+  let data = [];
+  const skipContexts = ['NestApplication', 'RouterExplorer', 'RoutesResolver']
+
+  const typeFiltersContainer = document.getElementById('type-filters');
+  const contextFiltersContainer = document.getElementById('context-filters');
+  const tableBody = document.querySelector('#log-table tbody');
+  const container = document.getElementById('log-container');
+
+  function renderTypeFilters() {
+    typeFiltersContainer.innerHTML = '';
+    types.forEach(t => {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = t;
+      checkbox.checked = selectedTypes.includes(t);
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) selectedTypes.push(t);
+        else selectedTypes = selectedTypes.filter(x => x !== t);
+        localStorage.setItem('selectedTypes', JSON.stringify(selectedTypes));
+        renderTable();
+      });
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(' ' + t));
+      typeFiltersContainer.appendChild(label);
+    });
+  }
+
+  function renderContextFilters() {
+    contextFiltersContainer.innerHTML = '';
+    knownContexts.forEach(c => {
+      const label = document.createElement('label');
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = c;
+      checkbox.checked = selectedContexts.includes(c);
+      checkbox.addEventListener('change', () => {
+        if (!checkbox.checked) selectedContexts = selectedContexts.filter(x => x !== c);
+        else if (!selectedContexts.includes(c)) selectedContexts.push(c);
+        renderTable();
+      });
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(' ' + c));
+      contextFiltersContainer.appendChild(label);
+    });
+    const updateTag = document.createElement('span');
+    updateTag.innerText = ' (update: ' + new Date().toLocaleString() + ')';
+    contextFiltersContainer.appendChild(updateTag);
+  }
+
+  function renderTable() {
+    const scrollTop = container.scrollTop;
+    tableBody.innerHTML = '';
+    const filtered = data.filter(d => selectedTypes.includes(d.level) && selectedContexts.includes(d.context));
+    filtered.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="type-${row.level}">${row.level}</td><td>${row.context}</td><td>${new Date(row.time).toLocaleString()}</td><td>${row.message}</td>`;
+      tableBody.appendChild(tr);
+    });
+    container.scrollTop = scrollTop;
+  }
+
+  async function fetchData() {
+    try {
+      const res = await fetch('/status/logs?json');
+      const json = await res.json();
+      data = json.items || [];
+      const contexts = Array.from(new Set(data.map(d => d.context)));
+
+      contexts.forEach(c => {
+        if (!knownContexts.includes(c) && !skipContexts.includes(c)) {
+          knownContexts.push(c);
+          selectedContexts.push(c);
+        };
+      });
+      renderContextFilters();
+      renderTable();
+    } catch(e) {
+      console.error('Fetch error:', e);
+    }
+  }
+
+  // Инициализация
+  renderTypeFilters();
+  fetchData();
+  setInterval(fetchData, 5000);
+})();
+</script>
+<style>
+  .type-log { color: #eee; }
+  .type-warn { color: #ffc107; }
+  .type-error { color: #f44336; }
+  .type-fatal { color: #b71c1c; }
+  .type-verbose { color: #2196f3;  }
+  .type-debug { color: #4caf50; }
+
+  #context-filters {
+    display: flex;
+    flex-flow: row wrap;
+  }
+  #context-filters > *:last-child {
+    margin-left: auto;
+    font-size: .7rem;
+  }
+</style>
+
+<%- include('footer') %>

@@ -1,0 +1,96 @@
+<%- include('header', { title: 'SC Stats Admin' }) %>
+  <table>
+    <thead>
+      <th>Map Name</th>
+      <th width="130">Matches count</th>
+      <th width="90">Map Type</th>
+      <th width="110">Map Version</th>
+      <th width="90">Map Patch</th>
+      <th width="85">Data Key</th>
+      <th width="40">Ignore</th>
+      <th width="40"></th>
+    </thead>
+    <tbody>
+    <% items.forEach((item, idx) => { %>
+      <% const color = (!item.dataKey || !item.mapVersion || !item.mapType) && !item.ignore ? 'pink' : 'transparent' %>
+      <tr style="background-color: <%= color %>">
+        <td>
+          <form id="form<%= idx %>" action="" method="post">
+            <input type="hidden" name="id" value="<%= item.id %>">
+          </form>
+          <input form="form<%= idx %>" name="mapName" type="text" disabled value="<%= item.mapName %>">
+        </td>
+        <td>
+          <input form="form<%= idx %>" name="matchesCount" type="text" value="<%= item._count.Match %>" disabled>
+        </td>
+        <td>
+          <select form="form<%= idx %>" name="mapType">
+            <option value=""></option>
+            <% mapTypes.forEach(key => { %>
+              <option value="<%= key %>" <%= item.mapType === key ? 'selected' : '' %>><%= key %></option>
+            <% }) %>
+          </select>
+        </td>
+        <td>
+          <input form="form<%= idx %>" name="mapVersion" type="text" value="<%= item.mapVersion ?? '' %>" maxlength="4">
+        </td>
+        <td>
+          <input form="form<%= idx %>" name="mapPatch" type="text" value="<%= item.mapPatch ?? '' %>" maxlength="1">
+        </td>
+        <td>
+          <select form="form<%= idx %>" name="dataKey">
+            <option value=""></option>
+            <% dataKeys.forEach(key => { %>
+              <option value="<%= key %>" <%= item.dataKey === key ? 'selected' : '' %>><%= key %></option>
+            <% }) %>
+          </select>
+        </td>
+        <td>
+          <input form="form<%= idx %>" name="ignore" type="checkbox" <%= item.ignore ? 'checked' : '' %>>
+        </td>
+        <td><input form="form<%= idx %>" type="submit" value="Save" /></td>
+      </tr>
+    <% }) %>
+    </tbody>
+  </table>
+  <style>
+    tr[style*="pink"] {
+      background: #5c2b2b !important; /* мягкий красноватый */
+    }
+
+    input[type="text"] {
+      width: 100%;
+      border: 1px solid #555;
+      border-radius: 4px;
+      padding: 0.25rem;
+      background: #1e1e1e;
+      color: #f1f3f5;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #4dabf7;
+      box-shadow: 0 0 4px #4dabf7;
+    }
+    input[type="submit"] {
+      background: #4dabf7;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    input[type="submit"]:hover {
+      background: #1c7ed6;
+    }
+    select {
+      background: inherit;
+      color: white
+    }
+    option {
+      background: #1e1e1e;
+      color: white;
+    }
+  </style>
+
+<%- include('footer') %>
