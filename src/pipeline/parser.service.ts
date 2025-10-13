@@ -285,7 +285,7 @@ export class ParserService {
   }
 
   private async removeReplayFile(filePath: string) {
-    const deleteParsed = false;
+    const deleteParsed = process.env.NODE_ENV === 'production';
 
     try {
       if (!deleteParsed) return;
