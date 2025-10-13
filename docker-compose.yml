@@ -29,10 +29,13 @@ services:
       W3C_REPLAYS_API_KEY: ${W3C_REPLAYS_API_KEY}
       WIKI_DATA_REPO: ${WIKI_DATA_REPO}
       WIKI_DATA_REPO_TOKEN: ${WIKI_DATA_REPO_TOKEN}
+      VIRTUAL_PORT: 4000
+      VIRTUAL_HOST: ${VIRTUAL_HOST}
+      LETSENCRYPT_HOST: ${VIRTUAL_HOST}
     volumes:
       - storage:/app/storage
     ports:
-      - 80:4000
+      - 4000:4000
     depends_on:
       postgres:
         condition: service_healthy
