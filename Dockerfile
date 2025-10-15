@@ -3,10 +3,11 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 RUN corepack enable && corepack prepare yarn@1.22 --activate
-
-COPY . ./
+COPY package.json yarn.lock ./
 
 RUN yarn install --frozen-lockfile
+
+COPY . ./
 RUN yarn prisma generate
 RUN yarn build
 
