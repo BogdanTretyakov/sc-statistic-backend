@@ -88,7 +88,7 @@ export class StatusController {
   @Get('/logs')
   @Header('Cache-Control', 'no-store')
   logs(@Query('json') json: string, @Res() res: Response) {
-    const items = this.logger.getLogs().reverse();
+    const items = this.logger.getLogs();
 
     if (json === undefined) {
       return res.render('logs', { items });

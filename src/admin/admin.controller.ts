@@ -141,7 +141,13 @@ export class AdminController {
 
     for (const filesPart of chunk(allFiles, showing)) {
       const downloadErrors = await this.prisma.mapProcess.findMany({
-        where: { filePath: { notIn: filesPart }, downloadError: { not: null } },
+        where: {
+          filePath: { notIn: filesPart },
+          downloadError: { not: null },
+          AND: {
+            downloadError: { not: 500 },
+          },
+        },
       });
 
       for (const file of downloadErrors) {

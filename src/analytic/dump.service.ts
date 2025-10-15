@@ -134,9 +134,7 @@ export class DumpService implements OnModuleInit {
             players: { include: { events: true } },
             map: {
               select: {
-                mapType: true,
-                mapVersion: true,
-                mapPatch: true,
+                dataKey: true,
               },
             },
             mapProcess: {
@@ -155,6 +153,7 @@ export class DumpService implements OnModuleInit {
         lastId = matches[matches.length - 1].id;
 
         for (const match of matches) {
+          const [mapType, mapVersion] = (match.map.dataKey ?? '').split('_');
           await matchCsv.writeDrain({
             id: match.id,
             duration: match.duration,
@@ -162,9 +161,8 @@ export class DumpService implements OnModuleInit {
             avgQuantile: match.avgQuantile,
             hasLeavers: match.hasLeavers,
             platform: match.mapProcess?.platform,
-            mapType: match.map?.mapType,
-            mapVersion: match.map?.mapVersion,
-            mapPatch: match.map?.mapPatch,
+            mapType,
+            mapVersion,
           });
 
           for (const player of match.players) {

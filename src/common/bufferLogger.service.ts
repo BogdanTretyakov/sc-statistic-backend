@@ -11,40 +11,55 @@ const UnknownContext = 'UnknownContext';
 
 @Injectable()
 export class BufferedLogger extends ConsoleLogger {
-  private buffers: Record<string, LogEntry[]> = {};
-  private defaultMaxSize = 500;
-  private logLevels: LogLevel[] = ['error', 'warn', 'log', 'fatal'];
+  private buffers: Record<LogLevel, LogEntry[]> = {
+    fatal: [],
+    error: [],
+    warn: [],
+    log: [],
+    verbose: [],
+    debug: [],
+  };
+  private defaultMaxSize: Record<LogLevel, number> = {
+    fatal: 500,
+    error: 500,
+    warn: 500,
+    log: 500,
+    verbose: 200,
+    debug: 200,
+  };
 
   constructor() {
     super(BufferedLogger.name);
-    this.setLogLevels(this.logLevels);
+    if (process.env.NODE_ENV === 'production') {
+      this.setLogLevels(['fatal', 'error']);
+    } else {
+      this.setLogLevels(['fatal', 'error', 'warn', 'log', 'verbose', 'debug']);
+    }
   }
 
   private addToBuffer(
     level: LogLevel,
     message: string,
-    context: string = 'default',
+    context: string = 'UnknownContext',
   ) {
-    if (!this.buffers[context]) {
-      this.buffers[context] = [];
-    }
-    this.buffers[context].push({ level, message, context, time: new Date() });
-    if (this.buffers[context].length > this.defaultMaxSize) {
-      this.buffers[context].shift();
+    const item = { level, message, context, time: new Date() };
+    this.buffers[level].push(item);
+    if (this.buffers[level].length > this.defaultMaxSize[level]) {
+      this.buffers[level].shift();
     }
   }
 
-  fatal(message: string, context?: string) {
+  override fatal(message: string, context?: string) {
     super.fatal(message, context);
     this.addToBuffer('fatal', message, context ?? UnknownContext);
   }
 
-  log(message: string, context?: string) {
+  override log(message: string, context?: string) {
     super.log(message, context);
     this.addToBuffer('log', message, context ?? UnknownContext);
   }
 
-  error(message: string, trace?: string, context?: string) {
+  override error(message: string, trace?: string, context?: string) {
     super.error(message, trace, context);
     this.addToBuffer(
       'error',
@@ -53,27 +68,27 @@ export class BufferedLogger extends ConsoleLogger {
     );
   }
 
-  warn(message: string, context?: string) {
+  override warn(message: string, context?: string) {
     super.warn(message, context);
     this.addToBuffer('warn', message, context ?? UnknownContext);
   }
 
-  debug(message: string, context?: string) {
+  override debug(message: string, context?: string) {
     super.debug(message, context);
     this.addToBuffer('debug', message, context ?? UnknownContext);
   }
 
-  verbose(message: string, context?: string) {
+  override verbose(message: string, context?: string) {
     super.verbose(message, context);
     this.addToBuffer('verbose', message, context ?? UnknownContext);
   }
 
-  getLogs(context?: string) {
-    if (context) {
-      return this.buffers[context]?.slice() ?? [];
-    }
+  getLogs() {
     return Object.values(this.buffers)
       .flat()
-      .sort((a, b) => a.time.valueOf() - b.time.valueOf());
+      .sort((a, b) => {
+        if (a.level === 'fatal' && b.level !== 'fatal') return -1;
+        return b.time.valueOf() - a.time.valueOf();
+      });
   }
 }
