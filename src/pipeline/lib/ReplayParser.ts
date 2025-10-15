@@ -277,13 +277,13 @@ export class ReplayParser {
     }
   }
 
-  private processBonusPick(id: string, player: PlayerState) {
-    if (!id || !player.race) return;
+  private processBonusPick(id: string, playerState: PlayerState) {
+    if (!id || !playerState.race) return;
 
-    const race = this.gameData.raceData[player.race];
+    const race = this.gameData.raceData[playerState.race];
     if (!race || !race.bonuses.includes(id)) return;
 
-    player.bonus = id;
+    playerState.bonus = id;
   }
 
   private processMMD(action: Action, playerState: PlayerState) {
@@ -298,6 +298,8 @@ export class ReplayParser {
     if (action.id !== 0x6b) return;
     const key = action.cache?.key.trim().slice(-4);
     if (!key || key.length !== 4) return;
+    const race = this.gameData.races[playerState.race];
+    if (!race) return;
 
     const ultiKey = this.lookup.ultimates[key];
     if (key in this.lookup.ultimates) {
@@ -310,10 +312,10 @@ export class ReplayParser {
         });
       }
     }
-    if (this.lookup.auras.has(key)) {
+    if (this.lookup.auras.has(key) && race.auras.includes(key)) {
       playerState.aura = key;
     }
-    if (this.lookup.bonuses.has(key)) {
+    if (this.lookup.bonuses.has(key) && race.bonuses.includes(key)) {
       playerState.bonus = key;
     }
   }

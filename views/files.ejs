@@ -31,7 +31,7 @@
           <label for="clear-<%= idx %>">Clear</label>
         </td>
         <td>
-          <input id="remove-<%= idx %>" form="form" type="checkbox" name="remove" value="<%= file.name %>">
+          <input id="remove-<%= idx %>" form="form" type="checkbox" name="remove" value="<%= file.name %>" <%= file.clearOnly ? 'disabled' : '' %>>
           <label for="remove-<%= idx %>">Remove</label>
         </td>
         <td></td>
@@ -50,10 +50,10 @@ label {
   document.addEventListener('change', (e) => {
     /** @type {HTMLInputElement} */
     const target = e.target
-    if (!(target instanceof HTMLInputElement) && !target.type === 'checkbox') return
+    if (!(target instanceof HTMLInputElement) && !target.type === 'checkbox' && target.checked) return
     Array.from(
       target.closest('tr')?.querySelectorAll('input[type="checkbox"]') ?? []
-    ).filter(x => x !== target).forEach(x => x.checked = !target.checked)
+    ).filter(x => x !== target).forEach(x => x.checked = false)
   })
 </script>
 

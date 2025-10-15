@@ -38,7 +38,9 @@ export class MigrationService implements OnModuleInit {
     );
 
     if (waitingMigrations.length) {
-      this.logger.verbose(`Found ${waitingMigrations.length}, start exec`);
+      this.logger.log(`Found ${waitingMigrations.length}, starting exec`);
+    } else {
+      this.logger.log('No waiting migrations');
     }
 
     for (const migrationFile of waitingMigrations) {

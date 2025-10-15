@@ -18,6 +18,7 @@ import { resolve } from 'path';
 import chunk from 'lodash/chunk';
 import { FilesDTO } from './lib/dto';
 import type { Request } from 'express';
+import { isNotNil } from 'src/pipeline/lib/guards';
 
 @UseGuards(AuthGuard)
 @Controller('/admin')
@@ -91,7 +92,12 @@ export class AdminController {
       resolve(process.cwd(), 'storage', 'replays'),
     );
     const files = allFiles.slice(0, showing);
-    const replays = Array<{ name: string; platform: string; reason: string }>();
+    const replays = Array<{
+      name: string;
+      platform: string;
+      reason: string;
+      clearOnly?: boolean;
+    }>();
 
     const dbStats = await this.prisma.mapProcess.findMany({
       where: { filePath: { in: files } },
@@ -133,6 +139,21 @@ export class AdminController {
       replays.push({ name: file, platform, reason });
     }
 
+    for (const filesPart of chunk(allFiles, showing)) {
+      const downloadErrors = await this.prisma.mapProcess.findMany({
+        where: { filePath: { notIn: filesPart }, downloadError: { not: null } },
+      });
+
+      for (const file of downloadErrors) {
+        replays.push({
+          name: file.filePath,
+          platform: file.platform,
+          reason: `Download: ${file.downloadError}`,
+          clearOnly: true,
+        });
+      }
+    }
+
     replays.sort((a, b) => (a.reason < b.reason ? -1 : 1));
 
     return { replays, total: allFiles.length, showing };
@@ -143,7 +164,7 @@ export class AdminController {
   async deleteFiles(@Body() body: FilesDTO, @Req() req: Request) {
     const base = resolve(process.cwd(), 'storage', 'replays');
     const [remove, clear] = [body.remove, body.clear].map((items) =>
-      [items].flat(),
+      [items].flat().filter(isNotNil),
     );
     for (const file of remove) {
       try {
@@ -159,13 +180,37 @@ export class AdminController {
       );
     }
     for (const files of chunk(clear, 50)) {
-      await this.prisma.mapProcess.updateMany({
-        where: { filePath: { in: files } },
-        data: {
-          mappingError: null,
-          downloadError: null,
-          processed: false,
-        },
+      await this.prisma.$transaction(async (prisma) => {
+        const mapProcess = await prisma.mapProcess.findMany({
+          where: { filePath: { in: files } },
+          select: { id: true },
+        });
+
+        const matches = await prisma.match.findMany({
+          where: { mapProcessId: { in: mapProcess.map((item) => item.id) } },
+          select: { id: true },
+        });
+        const players = await prisma.player.findMany({
+          where: { matchId: { in: matches.map((item) => item.id) } },
+          select: { id: true },
+        });
+        await prisma.playerEvent.deleteMany({
+          where: { playerMatchId: { in: players.map(({ id }) => id) } },
+        });
+        await prisma.player.deleteMany({
+          where: { id: { in: players.map(({ id }) => id) } },
+        });
+        await prisma.match.deleteMany({
+          where: { id: { in: matches.map(({ id }) => id) } },
+        });
+        await prisma.mapProcess.updateMany({
+          where: { id: { in: mapProcess.map((item) => item.id) } },
+          data: {
+            mappingError: null,
+            downloadError: null,
+            processed: false,
+          },
+        });
       });
     }
     if (clear.length) {

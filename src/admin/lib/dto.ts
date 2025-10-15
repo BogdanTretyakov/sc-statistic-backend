@@ -4,10 +4,10 @@ export class FilesDTO {
   @IsOptional()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
-  remove: string | string[];
+  remove?: string | string[];
 
   @IsOptional()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
-  clear: string | string[];
+  clear?: string | string[];
 }

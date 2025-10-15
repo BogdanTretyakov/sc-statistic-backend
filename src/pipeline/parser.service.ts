@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression, Timeout } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from 'src/common/prisma.service';
 import {
   MatchPlatform,
@@ -30,10 +30,6 @@ export class ParserService {
     private wikiData: WikiDataService,
     private cache: TaggedMemoryCache,
   ) {}
-
-  onModuleInit() {
-    this.parseMatches();
-  }
 
   @Cron(CronExpression.EVERY_MINUTE, {
     waitForCompletion: true,
@@ -270,9 +266,7 @@ export class ParserService {
         return false;
       }
       if (error instanceof ReplayParsingError) {
-        this.logger.error(
-          `Parsing error: ${error.message} for map ${filePath}`,
-        );
+        this.logger.error(`${error.message} for map ${filePath}`);
         await this.prisma.mapProcess.update({
           where: { id },
           data: { mappingError: ProcessError.PARSING_ERROR },
@@ -284,6 +278,8 @@ export class ParserService {
         this.logger.error(
           `Unhandled parser error: ${error.message} for map ${filePath}`,
         );
+      } else {
+        this.logger.error(`Unknown exception: ${error} for map ${filePath}`);
       }
       return false;
     }

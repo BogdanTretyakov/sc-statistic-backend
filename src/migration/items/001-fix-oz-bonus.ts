@@ -50,26 +50,28 @@ export async function exec({ wikiData, prisma, logger }: MigrationContext) {
   let removedMatches = 0;
 
   for (const matchIds of chunk(Array.from(badMatches), 50)) {
-    const playerIds = (
-      await prisma.player.findMany({
-        where: { matchId: { in: matchIds } },
-        select: { id: true },
-      })
-    ).map(({ id }) => id);
+    await prisma.$transaction(async (prInstance) => {
+      const playerIds = (
+        await prInstance.player.findMany({
+          where: { matchId: { in: matchIds } },
+          select: { id: true },
+        })
+      ).map(({ id }) => id);
 
-    const { count: events } = await prisma.playerEvent.deleteMany({
-      where: { playerMatchId: { in: playerIds } },
-    });
-    const { count: players } = await prisma.player.deleteMany({
-      where: { id: { in: playerIds } },
-    });
+      const { count: events } = await prInstance.playerEvent.deleteMany({
+        where: { playerMatchId: { in: playerIds } },
+      });
+      const { count: players } = await prInstance.player.deleteMany({
+        where: { id: { in: playerIds } },
+      });
 
-    const { count: matches } = await prisma.match.deleteMany({
-      where: { id: { in: matchIds } },
+      const { count: matches } = await prInstance.match.deleteMany({
+        where: { id: { in: matchIds } },
+      });
+      removedMatches += matches;
+      removedEvents += events;
+      removedPlayers += players;
     });
-    removedMatches += matches;
-    removedEvents += events;
-    removedPlayers += players;
   }
 
   for (const replayNames of chunk(Array.from(badReplays), 50)) {
