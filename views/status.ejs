@@ -11,17 +11,20 @@
     </div>
     <div class="stat">
       <h2>Last W3C match</h2>
-      <p>ID: <%= lastW3championsMatch.id %></p>
-      <p>Time: <%= new Date(lastW3championsMatch.time).toLocaleString() %></p>
+      <div>ID: <%= lastW3cMatch.id %></div>
+      <div>Ended at: <span data-time="<%= lastW3cMatch.time %>"></span></div>
     </div>
 
   </div>
 
   <div class="stats">
     <div class="stat">
-      <h2>Matches Parsed</h2>
-      <p>
-        <span><%= matchesParsed %></span>/<span class="error"><%= matchesErrors %></span></span></p>
+      <h2>Replays Stats</h2>
+      <div>Total: <b><%= replaysStatus.total %></b></div>
+      <div>Processed: <b style="color: greenyellow"><%= replaysStatus.done %></b></div>
+      <div>Pending: <b style="color: goldenrod"><%= replaysStatus.pending %></b></div>
+      <div>Download error: <b style="color: pink"><%= replaysStatus.downloadError %></b></div>
+      <div>Mapping error: <b style="color: red"><%= replaysStatus.mappingError %></b></div>
     </div>
   </div>
 
@@ -86,6 +89,9 @@
 
         content.textContent = JSON.stringify(dataKeysContent, null, 2);
       }
+    })
+    document.querySelectorAll('[data-time]').forEach(el => {
+      el.textContent = new Date(el.dataset.time).toLocaleString();
     })
   </script>
 

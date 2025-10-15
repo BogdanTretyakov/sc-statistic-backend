@@ -5,19 +5,19 @@ import { CommonModule } from './common/common.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AnalyticModule } from './analytic/analytic.module';
 import { AppController } from './app.controller';
+import { MigrationModule } from './migration/migration.module';
 
 @Module({
   imports: [
     ScheduleModule.forRoot({
-      cronJobs: true,
-      intervals: false,
-      timeouts: false,
+      cronJobs: process.env.NODE_ENV === 'production',
+      timeouts: true,
     }),
-
     CommonModule,
     AdminModule,
     PipelineModule,
     AnalyticModule,
+    MigrationModule,
   ],
   controllers: [AppController],
 })

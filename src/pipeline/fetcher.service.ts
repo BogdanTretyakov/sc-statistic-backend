@@ -67,6 +67,7 @@ export class FetcherService {
       if (offset) {
         this.logger.debug(
           `Fetching W3C ${type.toLocaleUpperCase()} matches, offset: ${offset} of ${count}...`,
+          `${FetcherService.name}${type.toLocaleUpperCase()}`,
         );
       }
       try {
@@ -97,7 +98,10 @@ export class FetcherService {
           break;
         }
       } catch (err) {
-        this.logger.error(`Error while fetching W3C matches for ${type}`);
+        this.logger.error(
+          `Error while fetching W3C matches`,
+          `${FetcherService.name}${type.toLocaleUpperCase()}`,
+        );
         return [];
       }
     }

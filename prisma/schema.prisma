@@ -153,3 +153,9 @@ model DatabaseDump {
   id   String   @id @default(uuid()) @db.Uuid
   date DateTime
 }
+
+model MigrationCustom {
+  name       String    @id
+  finishedAt DateTime?
+  error      Boolean?
+}

@@ -23,12 +23,19 @@
 
 <script>
 (function() {
-  const types = ['log', 'warn', 'error', 'fatal', 'verbose', 'debug'];
-  let selectedTypes = JSON.parse(localStorage.getItem('selectedTypes')) || types.slice();
+  const types = [
+    'fatal',
+    'error',
+    'warn',
+    'log',
+    'verbose',
+    'debug',
+  ];
+  let selectedTypes = JSON.parse(localStorage.getItem('selectedTypes')) || types.slice(0, 4);
   let knownContexts = [];
   let selectedContexts = [];
   let data = [];
-  const skipContexts = ['NestApplication', 'RouterExplorer', 'RoutesResolver']
+  const skipContexts = ['RouterExplorer', 'RoutesResolver']
 
   const typeFiltersContainer = document.getElementById('type-filters');
   const contextFiltersContainer = document.getElementById('context-filters');
@@ -122,6 +129,10 @@
   .type-fatal { color: #b71c1c; }
   .type-verbose { color: #2196f3;  }
   .type-debug { color: #4caf50; }
+
+  td {
+    white-space: pre-wrap;
+  }
 
   #context-filters {
     display: flex;

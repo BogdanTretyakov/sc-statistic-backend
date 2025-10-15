@@ -1,7 +1,7 @@
 import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron, CronExpression, Timeout } from '@nestjs/schedule';
 import { createReadStream, createWriteStream } from 'fs';
-import { access, mkdir, readdir, rm } from 'fs/promises';
+import { access, mkdir, readdir, rm, stat } from 'fs/promises';
 import { resolve } from 'path';
 import archiver from 'archiver';
 import { PrismaService } from 'src/common/prisma.service';
@@ -30,15 +30,17 @@ export class DumpService implements OnModuleInit {
     const path = resolve(this.dumpDir, `${id}.zip`);
     try {
       await access(path);
-      return createReadStream(path);
+      const { size } = await stat(path);
+      return [createReadStream(path), size] as const;
     } catch {
       this.logger.warn(`Dump file not found on disk: ${path}`);
-      return null;
+      return [null, 0] as const;
     }
   }
 
   @Cron(CronExpression.EVERY_10_MINUTES, { waitForCompletion: true })
-  private async checkDump() {
+  @Timeout(0)
+  async checkDump() {
     this.logger.verbose('Running scheduled dump check...');
     if (this.working) {
       return;
@@ -120,8 +122,9 @@ export class DumpService implements OnModuleInit {
       const totalMatches = await this.prisma.match.count();
 
       let lastId = 0n;
+      let fetched = 0;
       while (true) {
-        if (!(lastId % 1000n)) {
+        if (fetched % 1000 === 0) {
           this.logger.debug(`Dumping ${lastId} of ${totalMatches} matches...`);
         }
 
@@ -148,7 +151,7 @@ export class DumpService implements OnModuleInit {
         if (!matches.length) {
           break;
         }
-
+        fetched += matches.length;
         lastId = matches[matches.length - 1].id;
 
         for (const match of matches) {
@@ -247,7 +250,6 @@ export class DumpService implements OnModuleInit {
 
   async onModuleInit() {
     await mkdir(this.dumpDir, { recursive: true });
-    void this.checkDump();
   }
 }
 

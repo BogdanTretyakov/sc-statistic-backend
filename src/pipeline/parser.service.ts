@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron, CronExpression, Timeout } from '@nestjs/schedule';
 import { PrismaService } from 'src/common/prisma.service';
 import {
   MatchPlatform,
@@ -30,6 +30,10 @@ export class ParserService {
     private wikiData: WikiDataService,
     private cache: TaggedMemoryCache,
   ) {}
+
+  onModuleInit() {
+    this.parseMatches();
+  }
 
   @Cron(CronExpression.EVERY_MINUTE, {
     waitForCompletion: true,
@@ -118,10 +122,11 @@ export class ParserService {
     return output;
   }
 
-  async parseMap({ id, filePath, platform }: MapProcess): Promise<boolean> {
+  async parseMap(mapProcess: MapProcess): Promise<boolean> {
+    const { id, filePath, platform } = mapProcess;
     const path = resolve(process.cwd(), 'storage', 'replays', filePath);
     if (!existsSync(path)) {
-      await this.handleNonExistingMap(id);
+      await this.handleNonExistingMap(mapProcess);
       return false;
     }
     try {
@@ -236,7 +241,7 @@ export class ParserService {
             },
           });
         },
-        { timeout: 20000 },
+        { timeout: 30000, maxWait: 20000 },
       );
 
       this.cache.reset([map.mapVersion].filter(isNotNil));
@@ -299,21 +304,17 @@ export class ParserService {
     }
   }
 
-  private async handleNonExistingMap(id: MapProcess['id']) {
-    const mapProcess = await this.prisma.mapProcess.findUnique({
-      where: { id },
-      include: { W3ChampionsMatch: true },
-    });
-    const [w3champions] = mapProcess?.W3ChampionsMatch ?? [];
-    if (w3champions) {
-      await this.prisma.w3ChampionsMatch.update({
-        where: { id: w3champions.id },
-        data: {
-          processId: {
-            disconnect: { id },
+  private async handleNonExistingMap({ id, platform }: MapProcess) {
+    switch (platform) {
+      case MatchPlatform.W3Champions: {
+        await this.prisma.w3ChampionsMatch.updateMany({
+          where: { mapProcessId: id },
+          data: {
+            mapProcessId: null,
           },
-        },
-      });
+        });
+        break;
+      }
     }
     await this.prisma.mapProcess.delete({
       where: { id },

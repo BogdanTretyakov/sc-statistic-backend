@@ -10,7 +10,11 @@
   }
   nav a {
     color: white;
-    margin-left: 40px;
+    margin: 0 20px;
+    text-decoration: none;
+  }
+  nav a.admin {
+    opacity: 0.7;
   }
   h1 {
     margin-bottom: 1rem;
@@ -24,10 +28,14 @@
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
     border-radius: 6px;
     overflow: hidden;
+    overflow-y: auto;
   }
-  thead {
+  thead th {
     background: #343a40;
     color: #f1f3f5;
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
   th,
   td {
@@ -35,10 +43,22 @@
     border: 1px solid #3d3d3d;
     font-size: 0.9rem;
   }
-  tr:nth-child(even) {
+  tr:nth-child(even) td {
     background: #242424;
   }
-  tr:nth-child(odd) {
+  tr:nth-child(odd) td {
     background: #2b2b2b;
+  }
+  input[type='submit'] {
+    background: #4dabf7;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  input[type='submit']:hover {
+    background: #1c7ed6;
   }
 </style>

@@ -1,15 +1,33 @@
-import { Body, Controller, Get, Post, Render, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Post,
+  Render,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { MapVersion } from '@prisma/client';
 import { PrismaService } from 'src/common/prisma.service';
 import { AuthGuard } from 'src/admin/auth.guard';
 import { WikiDataService } from 'src/common/wikiData.service';
+import { TaggedMemoryCache } from 'src/common/tagCacheManager.service';
+import { access, readdir, rm } from 'fs/promises';
+import { resolve } from 'path';
+import chunk from 'lodash/chunk';
+import { FilesDTO } from './lib/dto';
+import type { Request } from 'express';
 
 @UseGuards(AuthGuard)
 @Controller('/admin')
 export class AdminController {
+  private logger = new Logger(AdminController.name);
+
   constructor(
     private prisma: PrismaService,
     private wikiData: WikiDataService,
+    private cache: TaggedMemoryCache,
   ) {}
 
   @Get('/')
@@ -49,7 +67,7 @@ export class AdminController {
   @Post('/')
   @Render('admin')
   async edit(@Body() body: MapVersion) {
-    await this.prisma.mapVersion.update({
+    const { mapName } = await this.prisma.mapVersion.update({
       where: { id: Number(body.id) },
       data: {
         mapType: body.mapType || null,
@@ -58,7 +76,103 @@ export class AdminController {
         dataKey: body.dataKey || null,
         ignore: Boolean(body.ignore),
       },
+      select: { mapName: true },
     });
+    this.logger.log(`Updated mapping for ${mapName}`);
+    this.cache.reset([body.mapVersion!]);
     return this.render();
+  }
+
+  @Get('/files')
+  @Render('files')
+  async renderFiles() {
+    const showing = 1000;
+    const allFiles = await readdir(
+      resolve(process.cwd(), 'storage', 'replays'),
+    );
+    const files = allFiles.slice(0, showing);
+    const replays = Array<{ name: string; platform: string; reason: string }>();
+
+    const dbStats = await this.prisma.mapProcess.findMany({
+      where: { filePath: { in: files } },
+      select: {
+        filePath: true,
+        processed: true,
+        mappingError: true,
+        downloadError: true,
+        platform: true,
+      },
+    });
+
+    const dbMap = Object.fromEntries(
+      dbStats.map((item) => [item.filePath, item]),
+    );
+
+    for (const file of files) {
+      const dbItem = dbMap[file];
+      if (!dbItem) {
+        replays.push({
+          name: file,
+          platform: 'Unknown',
+          reason: 'Orphan',
+        });
+        continue;
+      }
+
+      const { mappingError, downloadError, platform, processed } = dbItem;
+      if (!processed && !mappingError && !downloadError) {
+        continue;
+      }
+      const reason = (() => {
+        if (mappingError) return `${mappingError}`;
+        if (downloadError) return `Download: ${downloadError}`;
+        if (processed) return 'Processed';
+        return 'Unknown';
+      })();
+
+      replays.push({ name: file, platform, reason });
+    }
+
+    replays.sort((a, b) => (a.reason < b.reason ? -1 : 1));
+
+    return { replays, total: allFiles.length, showing };
+  }
+
+  @Post('/files')
+  @Render('files')
+  async deleteFiles(@Body() body: FilesDTO, @Req() req: Request) {
+    const base = resolve(process.cwd(), 'storage', 'replays');
+    const [remove, clear] = [body.remove, body.clear].map((items) =>
+      [items].flat(),
+    );
+    for (const file of remove) {
+      try {
+        await access(resolve(base, file));
+        await rm(resolve(base, file));
+      } catch (e) {
+        // noop
+      }
+    }
+    if (remove.length) {
+      this.logger.log(
+        `Removed raw replays by admin ${req.ips[0] ?? req.ip}:\n${remove.join('\n')}`,
+      );
+    }
+    for (const files of chunk(clear, 50)) {
+      await this.prisma.mapProcess.updateMany({
+        where: { filePath: { in: files } },
+        data: {
+          mappingError: null,
+          downloadError: null,
+          processed: false,
+        },
+      });
+    }
+    if (clear.length) {
+      this.logger.log(
+        `Cleared replays state by admin ${req.ips[0] ?? req.ip}:\n${clear.join('\n')}`,
+      );
+    }
+    return this.renderFiles();
   }
 }

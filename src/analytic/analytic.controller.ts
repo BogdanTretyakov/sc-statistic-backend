@@ -46,11 +46,12 @@ export class AnalyticController {
       throw new NotModifiedException();
     }
 
-    const stream = await this.dump.getDumpStream(dump.id);
+    const [stream, size] = await this.dump.getDumpStream(dump.id);
     if (!stream) throw new NotFoundException('Dump file not found');
 
     res.setHeader('ETag', etag);
     res.setHeader('Last-Modified', lastModified);
+    res.setHeader('Content-length', size);
 
     const userFileName = `surv_chaos_stats_dump_${dayjs(dump.date).format('YYYY_MM_DD_HH_mm_ss')}.zip`;
 

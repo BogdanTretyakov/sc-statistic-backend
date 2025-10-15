@@ -61,6 +61,11 @@ export type Match = {
     mapId: number;
     mapProcessId: string;
 };
+export type MigrationCustom = {
+    name: string;
+    finishedAt: Timestamp | null;
+    error: boolean | null;
+};
 export type PlatformPlayer = {
     id: Generated<number>;
     name: string;
@@ -108,6 +113,7 @@ export type DB = {
     MapProcess: MapProcess;
     MapVersion: MapVersion;
     Match: Match;
+    MigrationCustom: MigrationCustom;
     PlatformPlayer: PlatformPlayer;
     Player: Player;
     PlayerEvent: PlayerEvent;

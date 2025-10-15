@@ -251,9 +251,7 @@ export class ReplayParser {
     );
   }
 
-  private processRacePick(action: Action, playerState: PlayerState) {
-    if (action.id !== 0x19) return;
-    const pickerId = toGameId(action.itemId);
+  private processRacePick(pickerId: string, playerState: PlayerState) {
     if (!pickerId) return;
     const raceId = this.lookup.raceByPicker.get(pickerId);
     if (!raceId) return;
@@ -279,9 +277,7 @@ export class ReplayParser {
     }
   }
 
-  private processBonusPick(action: Action, player: PlayerState) {
-    if (action.id !== 0x19) return;
-    const id = toGameId(action.itemId);
+  private processBonusPick(id: string, player: PlayerState) {
     if (!id || !player.race) return;
 
     const race = this.gameData.raceData[player.race];
@@ -359,6 +355,31 @@ export class ReplayParser {
     playerState.events.push(event);
   }
 
+  private processRaceByUnitId(raceId: string, playerState: PlayerState) {
+    if (!playerState.race) {
+      playerState.race = raceId;
+      this.insertEvent(playerState, {
+        eventId: raceId,
+        eventType: PlayerEvents.INITIAL_RACE,
+        time: 0,
+      });
+      return;
+    }
+    if (playerState.race === raceId) {
+      if (this.duration > 7 * 60 * 1000) {
+        playerState.raceFinalized = true;
+      }
+      return;
+    }
+    this.insertEvent(playerState, {
+      eventId: playerState.race,
+      eventType: PlayerEvents.REPICK_RACE,
+      time: this.duration,
+    });
+    playerState.race = raceId;
+    playerState.raceFinalized = true;
+  }
+
   private processAction(action: Action, playerId: number) {
     const playerState = this.playersMap.get(playerId);
     if (!playerState || playerState.leaved) return;
@@ -385,14 +406,18 @@ export class ReplayParser {
       case 0x15:
         addObject([action.orderId1, action.object]);
         break;
-      case 0x19:
-        if (!playerState.raceFinalized) {
-          this.processRacePick(action, playerState);
+      case 0x19: {
+        const id = toGameId(action.itemId);
+        if (!id) break;
+        if (this.lookup.raceByPicker.has(id) && !playerState.raceFinalized) {
+          this.processRacePick(id, playerState);
         }
-        if (!playerState.bonus) {
-          this.processBonusPick(action, playerState);
+        // Always trying to specify bonus by building selection
+        if (this.lookup.bonuses.has(id)) {
+          this.processBonusPick(id, playerState);
         }
         break;
+      }
       case 0x6b:
         this.processMMD(action, playerState);
         break;
@@ -426,30 +451,14 @@ export class ReplayParser {
       // Check race by unit buy
       if (!playerState.raceFinalized && this.lookup.raceByUnit.has(id)) {
         const newRace = this.lookup.raceByUnit.get(id)!;
-        if (playerState.race) {
-          if (playerState.race !== newRace) {
-            this.insertEvent(playerState, {
-              eventId: newRace,
-              eventType: PlayerEvents.REPICK_RACE,
-              time: this.duration,
-            });
-            playerState.race = newRace;
-            playerState.raceFinalized = true;
-          } else if (this.duration > 7 * 60 * 1000) {
-            playerState.raceFinalized = true;
-          }
-        } else {
-          playerState.race = newRace;
-          this.insertEvent(playerState, {
-            eventId: this.lookup.raceByUnit.get(id)!,
-            eventType: PlayerEvents.INITIAL_RACE,
-            time: 0,
-          });
-        }
+        this.processRaceByUnitId(newRace, playerState);
       }
       // Trying to take bonus by itemID
       if (!playerState.bonus && this.lookup.bonusByUnit.has(id)) {
-        playerState.bonus = this.lookup.bonusByUnit.get(id)!;
+        const bonus = this.lookup.bonusByUnit.get(id)!;
+        if (this.gameData.raceData[playerState.race]?.bonuses.includes(bonus)) {
+          playerState.bonus = bonus;
+        }
       }
       // Heroes
       if (this.lookup.heroes.has(id)) {

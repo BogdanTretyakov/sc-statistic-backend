@@ -1,0 +1,61 @@
+<%- include('header', { title: 'SC Stats files admin' }) %>
+
+<% if (total > showing) { %>
+<p>Showing <%= replays.length %> of <%= total %></p>
+<% } %>
+
+
+<table>
+  <thead>
+    <tr>
+      <th>Replay name</th>
+      <th>Platform</th>
+      <th>Reason</th>
+      <th>Clear</th>
+      <th>Remove</th>
+      <th>
+        <form id="form" action="" method="post">
+          <input type="submit" value="Action">
+        </form>
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    <% replays.forEach((file, idx) => { %>
+      <tr>
+        <td><%= file.name %></td>
+        <td><%= file.platform %></td>
+        <td><%= file.reason %></td>
+        <td>
+          <input id="clear-<%= idx %>" form="form" type="checkbox" name="clear" value="<%= file.name %>">
+          <label for="clear-<%= idx %>">Clear</label>
+        </td>
+        <td>
+          <input id="remove-<%= idx %>" form="form" type="checkbox" name="remove" value="<%= file.name %>">
+          <label for="remove-<%= idx %>">Remove</label>
+        </td>
+        <td></td>
+      </tr>
+    <% }) %>
+  </tbody>
+</table>
+
+<style>
+label {
+  user-select: none;
+}
+</style>
+
+<script>
+  document.addEventListener('change', (e) => {
+    /** @type {HTMLInputElement} */
+    const target = e.target
+    if (!(target instanceof HTMLInputElement) && !target.type === 'checkbox') return
+    Array.from(
+      target.closest('tr')?.querySelectorAll('input[type="checkbox"]') ?? []
+    ).filter(x => x !== target).forEach(x => x.checked = !target.checked)
+  })
+</script>
+
+
+<%- include('footer') %>

@@ -21,6 +21,7 @@ async function bootstrap() {
   // EJS renderer
   app.setBaseViewsDir(resolve(process.cwd(), 'views'));
   app.setViewEngine('ejs');
+  app.enableShutdownHooks();
 
   app.useGlobalPipes(
     new ValidationPipe({

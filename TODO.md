@@ -1,0 +1,4 @@
+- Race WR by match duration
+- Chat parsing
+- Count matches by day
+- AVG matches by weekday/hour

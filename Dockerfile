@@ -6,7 +6,7 @@ RUN corepack enable && corepack prepare yarn@1.22 --activate
 
 COPY . ./
 
-RUN yarn
+RUN yarn install --frozen-lockfile
 RUN yarn prisma generate
 RUN yarn build
 
@@ -26,7 +26,6 @@ COPY views ./views
 COPY prisma ./prisma
 COPY start.sh ./start.sh
 
-RUN yarn
 RUN chmod +x start.sh
 
 EXPOSE 4000

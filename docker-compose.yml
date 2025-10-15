@@ -42,6 +42,15 @@ services:
     networks:
       - app-net
 
+  adminer:
+    image: adminer
+    restart: always
+    container_name: adminer
+    depends_on:
+      - postgres
+    ports:
+      - 127.0.0.1:1337:8080
+
 networks:
   app-net:
     driver: bridge
