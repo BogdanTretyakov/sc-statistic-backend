@@ -44,7 +44,12 @@ export class StatusController {
         ])
         .executeTakeFirstOrThrow();
 
-    const dataKeys = Object.keys(this.wikiData.data);
+    const dataKeys = (
+      await this.prisma.wikiData.findMany({
+        distinct: ['dataKey'],
+        select: { dataKey: true },
+      })
+    ).map(({ dataKey }) => dataKey);
 
     const lastW3cMatch = {
       id: w3cLastId,
@@ -99,6 +104,6 @@ export class StatusController {
 
   @Get('/dataKey/:key')
   dataKey(@Param('key') key: string) {
-    return this.wikiData.data[key];
+    return this.wikiData.getData(key);
   }
 }

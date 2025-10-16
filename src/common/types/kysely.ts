@@ -108,6 +108,12 @@ export type W3ChampionsMatch = {
     players: unknown;
     mapProcessId: string | null;
 };
+export type WikiData = {
+    dataKey: string;
+    key: string;
+    data: unknown;
+    sha: string;
+};
 export type DB = {
     DatabaseDump: DatabaseDump;
     MapProcess: MapProcess;
@@ -118,4 +124,5 @@ export type DB = {
     Player: Player;
     PlayerEvent: PlayerEvent;
     W3ChampionsMatch: W3ChampionsMatch;
+    WikiData: WikiData;
 };

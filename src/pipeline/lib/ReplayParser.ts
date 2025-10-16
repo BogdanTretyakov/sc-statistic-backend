@@ -8,7 +8,6 @@ import type { WikiDataService } from 'src/common/wikiData.service';
 import type { WikiDataMapping } from 'src/common/types/wikiData';
 import { SAME_EVENT_LAG } from './const';
 import { isLeaveGameBlock, isTimeslotBlock } from './guards';
-import type { TaggedMemoryCache } from 'src/common/tagCacheManager.service';
 
 type InternalEvent = {
   eventType: PlayerEvents;
@@ -92,7 +91,6 @@ export class ReplayParser {
     private filePath: string,
     private prisma: PrismaClient,
     private wikiData: WikiDataService,
-    private cache: TaggedMemoryCache,
   ) {}
 
   private async parseMetadata(): Promise<ReplayMetadata> {
@@ -227,11 +225,15 @@ export class ReplayParser {
       throw new Error("Prisma can't connect map version, lol");
     }
 
-    if (
-      !mapVersion.dataKey ||
-      !mapVersion.mapType ||
-      !this.wikiData.data[mapVersion.dataKey]
-    ) {
+    try {
+      if (!mapVersion.dataKey || !mapVersion.mapType) {
+        throw new Error();
+      }
+      this.gameData = await this.wikiData.getData(mapVersion.dataKey);
+      if (!this.gameData) throw new Error();
+      this.mapType = mapVersion.mapType;
+      this.lookup = this.buildLookup();
+    } catch (e) {
       await this.prisma.mapVersion.update({
         where: { id: mapVersion.id },
         data: { dataKey: null },
@@ -239,16 +241,6 @@ export class ReplayParser {
       // eslint-disable-next-line @typescript-eslint/only-throw-error
       throw new ReplayMappingError(mapVersion.id, mapName);
     }
-
-    this.mapType = mapVersion.mapType;
-
-    this.gameData = this.wikiData.data[mapVersion.dataKey];
-
-    this.lookup = this.cache.wrap(
-      ['parserLookup', mapVersion.dataKey],
-      () => this.buildLookup(),
-      ['wikiData'],
-    );
   }
 
   private processRacePick(pickerId: string, playerState: PlayerState) {

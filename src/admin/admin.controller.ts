@@ -11,7 +11,6 @@ import {
 import type { MapVersion } from '@prisma/client';
 import { PrismaService } from 'src/common/prisma.service';
 import { AuthGuard } from 'src/admin/auth.guard';
-import { WikiDataService } from 'src/common/wikiData.service';
 import { TaggedMemoryCache } from 'src/common/tagCacheManager.service';
 import { access, readdir, rm } from 'fs/promises';
 import { resolve } from 'path';
@@ -27,7 +26,6 @@ export class AdminController {
 
   constructor(
     private prisma: PrismaService,
-    private wikiData: WikiDataService,
     private cache: TaggedMemoryCache,
   ) {}
 
@@ -57,7 +55,12 @@ export class AdminController {
         },
       },
     });
-    const dataKeys = Object.keys(this.wikiData.data);
+    const dataKeys = (
+      await this.prisma.wikiData.findMany({
+        distinct: ['dataKey'],
+        select: { dataKey: true },
+      })
+    ).map(({ dataKey }) => dataKey);
     const mapTypes = [
       ...new Set(dataKeys.map((s) => s.split('_')?.[0]).filter(Boolean)),
     ];

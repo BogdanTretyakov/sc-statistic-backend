@@ -1,4 +1,4 @@
-import { chunk } from 'lodash';
+import { chunk, noop } from 'lodash';
 import type { MigrationContext } from '../types';
 
 export async function exec({ wikiData, prisma, logger }: MigrationContext) {
@@ -12,8 +12,7 @@ export async function exec({ wikiData, prisma, logger }: MigrationContext) {
 
   for (const mapVersion of mapVersions) {
     const { id: mapId, dataKey } = mapVersion;
-    /** @type {import('../../common/types/wikiData').WikiDataMapping} */
-    const { raceData } = wikiData.data[dataKey ?? ''] ?? {};
+    const { raceData } = (await wikiData.getData(dataKey!).catch(noop)) ?? {};
     if (!raceData) continue;
 
     for (const race of Object.values(raceData)) {

@@ -126,12 +126,7 @@ export class ParserService {
       return false;
     }
     try {
-      const parser = new ReplayParser(
-        path,
-        this.prisma,
-        this.wikiData,
-        this.cache,
-      );
+      const parser = new ReplayParser(path, this.prisma, this.wikiData);
       const data = await parser.parse();
 
       const { map, endAt, players } = await this.getEnrichedMatchData(

@@ -88,12 +88,7 @@ export class BaseRaceDto extends BaseAnalyticDto {
   @IsBoolean()
   onlyWinners?: boolean;
 
-  @IsOptional()
-  @ToBoolean()
-  @IsBoolean()
-  afterRepick?: boolean;
-
   @IsString({ each: true })
   @IsOptional()
-  vsRace?: string[];
+  vsRace?: string | string[];
 }

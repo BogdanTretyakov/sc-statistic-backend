@@ -1,6 +1,6 @@
-import { type Prisma, PlayerEvents } from '@prisma/client';
+import { type Prisma } from '@prisma/client';
 import type { BaseAnalyticDto, BaseRaceDto, MapDto } from './dto';
-import { merge } from 'lodash';
+import { isNotNil } from 'src/pipeline/lib/guards';
 
 export function mapFilter(dto: MapDto): Prisma.MapVersionWhereInput {
   return {
@@ -9,9 +9,7 @@ export function mapFilter(dto: MapDto): Prisma.MapVersionWhereInput {
   };
 }
 
-export function matchFilter(
-  dto: BaseAnalyticDto | BaseRaceDto,
-): Prisma.MatchWhereInput {
+export function matchFilter(dto: BaseAnalyticDto): Prisma.MatchWhereInput {
   const {
     date_from,
     date_to,
@@ -29,18 +27,6 @@ export function matchFilter(
     output.hasLeavers = false;
   }
 
-  if ('vsRace' in dto) {
-    output.players = merge<unknown, Prisma.MatchWhereInput['players']>(
-      output.players,
-      {
-        some: {
-          raceId: {
-            in: dto.vsRace,
-          },
-        },
-      },
-    );
-  }
   if (date_from || date_to) {
     output.endAt = {
       ...(date_from ? { gte: date_from } : {}),
@@ -64,7 +50,8 @@ export function matchFilter(
 }
 
 export function playerFilter(dto: BaseRaceDto): Prisma.PlayerWhereInput {
-  const { race, onlyWinners, afterRepick } = dto;
+  const { race, onlyWinners, vsRace } = dto;
+  const versusRaces = [vsRace].flat().filter(isNotNil);
   const output: Prisma.PlayerWhereInput = {
     raceId: race,
   };
@@ -72,11 +59,17 @@ export function playerFilter(dto: BaseRaceDto): Prisma.PlayerWhereInput {
   if (onlyWinners) {
     output.place = 1;
   }
-  if (afterRepick) {
-    output.events = merge<unknown, Prisma.PlayerWhereInput['events']>(
-      output.events,
-      { some: { eventType: PlayerEvents.REPICK_RACE } },
-    );
+
+  if (versusRaces.length) {
+    output.match = {
+      players: {
+        some: {
+          raceId: {
+            in: versusRaces,
+          },
+        },
+      },
+    };
   }
 
   return output;

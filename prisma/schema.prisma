@@ -159,3 +159,12 @@ model MigrationCustom {
   finishedAt DateTime?
   error      Boolean?
 }
+
+model WikiData {
+  dataKey String
+  key     String
+  data    Json   @db.Json
+  sha     String
+
+  @@id([dataKey, key])
+}

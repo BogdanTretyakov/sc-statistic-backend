@@ -1,7 +1,7 @@
 import type { SelectQueryBuilder } from 'kysely';
 import type { BaseAnalyticDto, BaseRaceDto } from './dto';
-import { PlayerEvents } from '@prisma/client';
 import type { DB } from 'src/common/types/kysely';
+import { isNotNil } from 'src/pipeline/lib/guards';
 
 export function addMatchFilter<
   T extends SelectQueryBuilder<DB, 'Match', unknown>,
@@ -40,23 +40,18 @@ export function addMatchFilter<
 export function addPlayerWhere<
   T extends SelectQueryBuilder<DB, 'Player', unknown>,
 >(dto: BaseRaceDto, query: T) {
-  const { race, onlyWinners, afterRepick, vsRace, ...matchDto } = dto;
+  const { race, onlyWinners, vsRace, ...matchDto } = dto;
+
+  const versusRaces = [vsRace].flat().filter(isNotNil);
 
   const playerQuery = query
     .where('Player.raceId', '=', dto.race)
     .$if(!!onlyWinners, (e) => e.where('Player.place', '=', 1))
-    .$if(!!afterRepick, (e) =>
-      e.where((w) =>
-        w.exists(
-          w
-            .selectFrom('PlayerEvent as pe')
-            .whereRef('pe.playerMatchId', '=', 'Player.id')
-            .where('pe.eventType', '=', PlayerEvents.REPICK_RACE)
-            .limit(1),
-        ),
-      ),
-    )
     .innerJoin('Match', 'Player.matchId', 'Match.id');
 
-  return addMatchFilter(matchDto, playerQuery) as T;
+  return addMatchFilter(matchDto, playerQuery).$if(!!versusRaces.length, (e) =>
+    e
+      .innerJoin('Player as pvr', 'pvr.matchId', 'Match.id')
+      .where('pvr.raceId', 'in', versusRaces),
+  ) as T;
 }
