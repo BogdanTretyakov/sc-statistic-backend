@@ -7,7 +7,8 @@ import type { Action } from 'w3gjs/dist/types/parsers/ActionParser';
 import type { WikiDataService } from 'src/common/wikiData.service';
 import type { WikiDataMapping } from 'src/common/types/wikiData';
 import { SAME_EVENT_LAG } from './const';
-import { isLeaveGameBlock, isTimeslotBlock } from './guards';
+import { isLeaveGameBlock, isNotNil, isTimeslotBlock } from './guards';
+import uniq from 'lodash/uniq';
 
 type InternalEvent = {
   eventType: PlayerEvents;
@@ -21,9 +22,9 @@ export type PlayerState = {
   playerName: string;
   race: string;
   raceFinalized: boolean;
-  bonus: string | null;
-  ultimate: string | null;
-  aura: string | null;
+  bonus: string[];
+  ultimate: string[];
+  aura: string[];
   events: InternalEvent[];
   time: number;
   place: number;
@@ -107,9 +108,9 @@ export class ReplayParser {
         playerName: pr.playerName,
         race: '',
         raceFinalized: false,
-        bonus: null,
-        ultimate: null,
-        aura: null,
+        bonus: [],
+        ultimate: [],
+        aura: [],
         events: [],
         time: 0,
         place: 0,
@@ -275,7 +276,7 @@ export class ReplayParser {
     const race = this.gameData.raceData[playerState.race];
     if (!race || !race.bonuses.includes(id)) return;
 
-    playerState.bonus = id;
+    playerState.bonus.push(id);
   }
 
   private processMMD(action: Action, playerState: PlayerState) {
@@ -295,7 +296,7 @@ export class ReplayParser {
 
     const ultiKey = this.lookup.ultimates[key];
     if (key in this.lookup.ultimates) {
-      playerState.ultimate = ultiKey;
+      playerState.ultimate.push(ultiKey);
       if (key !== ultiKey) {
         this.insertEvent(playerState, {
           eventId: ultiKey,
@@ -305,10 +306,10 @@ export class ReplayParser {
       }
     }
     if (this.lookup.auras.has(key) && race.auras.includes(key)) {
-      playerState.aura = key;
+      playerState.aura.push(key);
     }
     if (this.lookup.bonuses.has(key) && race.bonuses.includes(key)) {
-      playerState.bonus = key;
+      playerState.bonus.push(key);
     }
   }
 
@@ -448,10 +449,10 @@ export class ReplayParser {
         this.processRaceByUnitId(newRace, playerState);
       }
       // Trying to take bonus by itemID
-      if (!playerState.bonus && this.lookup.bonusByUnit.has(id)) {
+      if (this.lookup.bonusByUnit.has(id)) {
         const bonus = this.lookup.bonusByUnit.get(id)!;
         if (this.gameData.raceData[playerState.race]?.bonuses.includes(bonus)) {
-          playerState.bonus = bonus;
+          playerState.bonus.push(bonus);
         }
       }
       // Heroes
@@ -496,16 +497,16 @@ export class ReplayParser {
       }
       // Maybe get aura
       if (this.lookup.auras.has(id)) {
-        playerState.aura = id;
+        playerState.aura.push(id);
       }
       // Maybe get ultimate
       if (this.lookup.ultimates[id]) {
-        playerState.ultimate = this.lookup.ultimates[id];
+        playerState.ultimate.push(this.lookup.ultimates[id]);
       }
     }
   }
 
-  private resultData() {
+  private preparePlayersState() {
     const sortedPlayers = Array.from(this.playersMap.values())
       .filter(({ race }) => race)
       .sort((a, b) => b.time - a.time)
@@ -513,7 +514,23 @@ export class ReplayParser {
         ...p,
         place: idx + 1,
         events: p.events.filter(({ cancelled }) => !cancelled),
-      }));
+      }))
+      .map((player) => {
+        if (this.mapType === 'og') {
+          player.bonus = [player.bonus.pop()].filter(isNotNil);
+        }
+        if (this.mapType === 'oz') {
+          player.bonus = uniq(player.bonus);
+        }
+
+        return player;
+      });
+
+    return sortedPlayers;
+  }
+
+  private resultData() {
+    const sortedPlayers = this.preparePlayersState();
 
     if (sortedPlayers.length < 2) {
       throw new ReplayParsingError(

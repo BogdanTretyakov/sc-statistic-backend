@@ -11,7 +11,6 @@ import {
 import type { MapVersion } from '@prisma/client';
 import { PrismaService } from 'src/common/prisma.service';
 import { AuthGuard } from 'src/admin/auth.guard';
-import { TaggedMemoryCache } from 'src/common/tagCacheManager.service';
 import { access, readdir, rm } from 'fs/promises';
 import { resolve } from 'path';
 import chunk from 'lodash/chunk';
@@ -24,10 +23,7 @@ import { isNotNil } from 'src/pipeline/lib/guards';
 export class AdminController {
   private logger = new Logger(AdminController.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private cache: TaggedMemoryCache,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   @Get('/')
   @Render('admin')
@@ -83,7 +79,6 @@ export class AdminController {
       select: { mapName: true },
     });
     this.logger.log(`Updated mapping for ${mapName}`);
-    this.cache.reset([body.mapVersion!]);
     return this.render();
   }
 

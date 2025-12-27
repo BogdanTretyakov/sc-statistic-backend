@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from 'src/common/prisma.service';
 import {
   MatchPlatform,
+  PlayerDataType,
   PlayerEvents,
   ProcessError,
   type MapProcess,
@@ -16,8 +17,6 @@ import {
   ReplayParsingError,
 } from './lib/ReplayParser';
 import { rm } from 'fs/promises';
-import { TaggedMemoryCache } from 'src/common/tagCacheManager.service';
-import { isNotNil } from './lib/guards';
 import { existsSync } from 'fs';
 import { TIME_TO_COUNT_PLAYER_AS_LEAVER } from './lib/const';
 
@@ -28,7 +27,6 @@ export class ParserService {
   constructor(
     private prisma: PrismaService,
     private wikiData: WikiDataService,
-    private cache: TaggedMemoryCache,
   ) {}
 
   @Cron(CronExpression.EVERY_MINUTE, {
@@ -193,12 +191,9 @@ export class ParserService {
               },
             });
 
-            await prisma.player.create({
+            const { id: createdPlayerId } = await prisma.player.create({
               data: {
-                bonusId: player.bonus,
                 raceId: player.race,
-                auraId: player.aura,
-                ultimateId: player.ultimate,
                 place: player.place,
                 mmr: players[player.playerName]?.mmr ?? null,
                 quantile: players[player.playerName]?.quantile ?? null,
@@ -222,6 +217,27 @@ export class ParserService {
                 },
               },
             });
+
+            await prisma.playerData.createMany({
+              skipDuplicates: true,
+              data: [
+                ...player.bonus.map((value) => ({
+                  playerId: createdPlayerId,
+                  type: PlayerDataType.BONUS,
+                  value,
+                })),
+                ...player.aura.map((value) => ({
+                  playerId: createdPlayerId,
+                  type: PlayerDataType.AURA,
+                  value,
+                })),
+                ...player.ultimate.map((value) => ({
+                  playerId: createdPlayerId,
+                  type: PlayerDataType.ULTIMATE,
+                  value,
+                })),
+              ],
+            });
           }
 
           await prisma.mapProcess.update({
@@ -234,8 +250,6 @@ export class ParserService {
         },
         { timeout: 30000, maxWait: 20000 },
       );
-
-      this.cache.reset([map.mapVersion].filter(isNotNil));
 
       this.logger.verbose(`Parsed map: ${filePath}`);
 

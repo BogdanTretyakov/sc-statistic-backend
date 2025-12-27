@@ -14,6 +14,12 @@ export const ProcessError = {
     PARSING_ERROR: "PARSING_ERROR"
 } as const;
 export type ProcessError = (typeof ProcessError)[keyof typeof ProcessError];
+export const PlayerDataType = {
+    BONUS: "BONUS",
+    AURA: "AURA",
+    ULTIMATE: "ULTIMATE"
+} as const;
+export type PlayerDataType = (typeof PlayerDataType)[keyof typeof PlayerDataType];
 export const PlayerEvents = {
     INITIAL_RACE: "INITIAL_RACE",
     BAN_RACE: "BAN_RACE",
@@ -83,11 +89,13 @@ export type Player = {
      */
     timeAlive: number;
     raceId: string;
-    bonusId: string | null;
-    auraId: string | null;
-    ultimateId: string | null;
     mmr: number | null;
     quantile: number | null;
+};
+export type PlayerData = {
+    playerId: string;
+    type: PlayerDataType;
+    value: string;
 };
 export type PlayerEvent = {
     playerMatchId: string;
@@ -122,6 +130,7 @@ export type DB = {
     MigrationCustom: MigrationCustom;
     PlatformPlayer: PlatformPlayer;
     Player: Player;
+    PlayerData: PlayerData;
     PlayerEvent: PlayerEvent;
     W3ChampionsMatch: W3ChampionsMatch;
     WikiData: WikiData;

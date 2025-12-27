@@ -5,7 +5,6 @@ import type { GithubBlobFile, GithubTree } from './types/github';
 import type { RaceMapping, WikiDataMapping } from './types/wikiData';
 import { PrismaService } from './prisma.service';
 import { groupBy, mapValues, noop } from 'lodash';
-import { TaggedMemoryCache } from './tagCacheManager.service';
 import { AxiosError } from 'axios';
 import { isNotNil } from 'src/pipeline/lib/guards';
 
@@ -21,10 +20,7 @@ export class WikiDataService implements OnModuleInit {
     },
   });
 
-  constructor(
-    private cache: TaggedMemoryCache,
-    private prisma: PrismaService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   private readonly repoApiUrl = `https://api.github.com/repos/${process.env.WIKI_DATA_REPO}/git/trees/master?recursive=1`;
 
@@ -148,7 +144,6 @@ export class WikiDataService implements OnModuleInit {
       }
 
       if (keysUpdated.size) {
-        this.cache.reset(['wikiData']);
         this.logger.log(
           `Updated data for ${Array.from(keysUpdated).join(', ')}`,
         );
@@ -189,11 +184,7 @@ export class WikiDataService implements OnModuleInit {
   public async getData(dataKey: string) {
     await this.working;
 
-    return this.cache.wrap(
-      ['wikiData', 'data', dataKey],
-      () => this.uncachedGetData(dataKey),
-      ['wikiData', dataKey],
-    );
+    return this.uncachedGetData(dataKey);
   }
 
   private handleContent(type: string, { data }: { data: any }) {

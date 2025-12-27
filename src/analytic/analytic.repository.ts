@@ -338,69 +338,73 @@ export class AnalyticRepository {
     const whereMatch = matchFilter(dto);
     const wherePlayer = playerFilter(dto);
 
-    const playerGroups = await this.prisma.player.groupBy({
-      by: ['bonusId', 'place'],
+    const playerGroups = await this.prisma.playerData.groupBy({
+      by: ['value', 'playerId'],
+      where: {
+        type: 'BONUS',
+        player: {
+          ...wherePlayer,
+          match: whereMatch,
+        },
+      },
       _count: { _all: true },
+    });
+
+    if (!playerGroups.length) return [];
+
+    const playersWithPlace = await this.prisma.player.findMany({
       where: {
         ...wherePlayer,
         match: whereMatch,
-        bonusId: { not: null },
+        playerDatas: {
+          some: {
+            type: 'BONUS',
+          },
+        },
+      },
+      select: {
+        id: true,
+        place: true,
+        playerDatas: {
+          where: { type: 'BONUS' },
+          select: { value: true },
+        },
       },
     });
 
-    const countByBonus = playerGroups.reduce<Record<string, number>>(
-      (acc, { bonusId, _count: { _all } }) => {
-        if (!bonusId) return acc;
-        if (!acc[bonusId]) acc[bonusId] = 0;
-        acc[bonusId] += _all;
-        return acc;
-      },
-      {},
-    );
-
-    const totalPlayers = await this.prisma.player.count({
-      where: {
-        ...wherePlayer,
-        match: whereMatch,
-        bonusId: { not: null },
-      },
-    });
+    const totalPlayers = playersWithPlace.length;
 
     const bonusMap: Record<
       string,
-      { pickrate: number; places: Record<number, number>; count: number }
+      { count: number; places: Record<number, number> }
     > = {};
 
-    for (const row of playerGroups) {
-      const count = countByBonus[row.bonusId ?? ''] ?? 0;
-      if (!bonusMap[row.bonusId!]) {
-        bonusMap[row.bonusId!] = {
-          pickrate: 0,
-          places: { 1: 0, 2: 0, 3: 0, 4: 0 },
-          count,
-        };
+    for (const p of playersWithPlace) {
+      for (const { value: bonus } of p.playerDatas) {
+        if (!bonusMap[bonus]) {
+          bonusMap[bonus] = {
+            count: 0,
+            places: { 1: 0, 2: 0, 3: 0, 4: 0 },
+          };
+        }
+
+        bonusMap[bonus].count += 1;
+        bonusMap[bonus].places[p.place] += 1;
       }
-
-      if (!count) continue;
-      bonusMap[row.bonusId ?? ''].places[row.place] =
-        (row._count._all / count) * 100;
-    }
-
-    for (const bonusId in bonusMap) {
-      const data = bonusMap[bonusId];
-      const totalBonusCount = playerGroups
-        .filter((r) => r.bonusId === bonusId)
-        .reduce((sum, r) => sum + r._count._all, 0);
-      data.pickrate = (totalBonusCount / totalPlayers) * 100;
     }
 
     return Object.entries(bonusMap).map(([bonus, stats]) => ({
       bonus,
       matchesCount: stats.count,
-      pickrate: +stats.pickrate.toFixed(2),
-      winrate: +stats.places[1].toFixed(2),
+      pickrate: +((stats.count / totalPlayers) * 100).toFixed(2),
+      winrate: +(((stats.places[1] || 0) / (stats.count || 1)) * 100).toFixed(
+        2,
+      ),
       places: Object.fromEntries(
-        Object.entries(stats.places).map(([k, v]) => [k, +v.toFixed(2)]),
+        Object.entries(stats.places).map(([k, v]) => [
+          k,
+          +((v / (stats.count || 1)) * 100).toFixed(2),
+        ]),
       ),
     }));
   }

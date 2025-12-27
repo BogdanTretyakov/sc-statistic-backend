@@ -20,10 +20,10 @@ export async function exec({ wikiData, prisma, logger }: MigrationContext) {
         where: {
           raceId: race.id,
           match: { mapId },
-          bonusId: {
-            not: null,
-            notIn: race.bonuses,
-          },
+          // bonusId: {
+          //   not: null,
+          //   notIn: race.bonuses,
+          // },
         },
         distinct: ['matchId'],
         include: {

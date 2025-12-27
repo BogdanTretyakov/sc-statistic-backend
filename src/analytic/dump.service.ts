@@ -5,7 +5,7 @@ import { access, mkdir, readdir, rm, stat } from 'fs/promises';
 import { resolve } from 'path';
 import archiver from 'archiver';
 import { PrismaService } from 'src/common/prisma.service';
-import type { DatabaseDump } from '@prisma/client';
+import { PlayerDataType, type DatabaseDump } from '@prisma/client';
 import { nanoid } from 'nanoid';
 import { noop } from 'lodash';
 import { AwaitableCsv } from './lib/csvFormat';
@@ -131,7 +131,7 @@ export class DumpService implements OnModuleInit {
         const matches = await this.prisma.match.findMany({
           orderBy: [{ id: 'asc' }],
           include: {
-            players: { include: { events: true } },
+            players: { include: { events: true, playerDatas: true } },
             map: {
               select: {
                 dataKey: true,
@@ -173,8 +173,12 @@ export class DumpService implements OnModuleInit {
               quantile: player.quantile,
               place: player.place,
               raceId: player.raceId,
-              bonusId: player.bonusId,
-              ultimateId: player.ultimateId,
+              bonusId: player.playerDatas
+                .filter(({ type }) => type === PlayerDataType.BONUS)
+                .join(','),
+              ultimateId: player.playerDatas
+                .filter(({ type }) => type === PlayerDataType.ULTIMATE)
+                .join(','),
             });
 
             for (const event of player.events) {

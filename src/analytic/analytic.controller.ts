@@ -14,14 +14,12 @@ import { BaseAnalyticDto, BaseRaceDto } from './lib/dto';
 import type { Request, Response } from 'express';
 import { NotModifiedException } from 'src/common/utils/nest';
 import dayjs from 'dayjs';
-import { TaggedMemoryCache } from 'src/common/tagCacheManager.service';
 
 @Controller('/analytic')
 export class AnalyticController {
   constructor(
     private repo: AnalyticRepository,
     private dump: DumpService,
-    private cache: TaggedMemoryCache,
   ) {}
 
   @Get('/dump')
@@ -68,33 +66,16 @@ export class AnalyticController {
 
   @Get('/meta-patch')
   async patchMeta(@Query() dto: BaseAnalyticDto) {
-    const { type, version, withLeavers, ...restDto } = dto;
-    return this.cache.wrap(
-      ['patchMetaData', type, version, withLeavers, restDto],
-      () => this.repo.getPatchMetaData(dto),
-      [type, version],
-    );
+    return this.repo.getPatchMetaData(dto);
   }
 
   @Get('/races')
   async races(@Query() dto: BaseAnalyticDto) {
-    const { type, version, withLeavers, ...restDto } = dto;
-
-    return this.cache.wrap(
-      ['allRaceStats', type, version, withLeavers, restDto],
-      () => this.repo.getRacesData(dto),
-      [type, version],
-    );
+    return this.repo.getRacesData(dto);
   }
 
   @Get('/race')
   async raceData(@Query() dto: BaseRaceDto) {
-    const { type, version, race, withLeavers, ...restDto } = dto;
-
-    return this.cache.wrap(
-      ['raceData', type, version, race, withLeavers, restDto],
-      () => this.repo.getRaceData(dto),
-      [type, version, race],
-    );
+    return this.repo.getRaceData(dto);
   }
 }
