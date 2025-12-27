@@ -4,6 +4,7 @@ import {
   Get,
   Logger,
   Post,
+  Redirect,
   Render,
   Req,
   UseGuards,
@@ -14,16 +15,20 @@ import { AuthGuard } from 'src/admin/auth.guard';
 import { access, readdir, rm } from 'fs/promises';
 import { resolve } from 'path';
 import chunk from 'lodash/chunk';
-import { FilesDTO } from './lib/dto';
+import { FilesDTO, ForceDownloadDTO } from './lib/dto';
 import type { Request } from 'express';
 import { isNotNil } from 'src/pipeline/lib/guards';
+import { FetcherService } from 'src/pipeline/fetcher.service';
 
 @UseGuards(AuthGuard)
 @Controller('/admin')
 export class AdminController {
   private logger = new Logger(AdminController.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private fetcherService: FetcherService,
+  ) {}
 
   @Get('/')
   @Render('admin')
@@ -223,5 +228,14 @@ export class AdminController {
       );
     }
     return this.renderFiles();
+  }
+
+  @Post('/forceDownload')
+  @Redirect('/admin')
+  @Render('admin')
+  async forceDownload(@Body() body: ForceDownloadDTO) {
+    const { type } = body;
+    void this.fetcherService.adminForceDownload(type);
+    return this.render();
   }
 }

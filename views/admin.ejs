@@ -1,5 +1,21 @@
 <%- include('header', { title: 'SC Stats Admin' }) %>
   <table>
+    <tbody>
+      <td>
+        <form action="/admin/forceDownload" method="post">
+          <input hidden value="oz" name="type" />
+          <input type="submit" value="Download Oz Matches" />
+        </form>
+      </td>
+      <td>
+        <form action="/admin/forceDownload" method="post">
+          <input hidden value="og" name="type" />
+          <input type="submit" value="Download Og Matches" />
+        </form>
+      </td>
+    </tbody>
+  </table>
+  <table>
     <thead>
       <th>Map Name</th>
       <th width="130">Matches count</th>

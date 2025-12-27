@@ -11,3 +11,9 @@ export class FilesDTO {
   @IsNotEmpty({ each: true })
   clear?: string | string[];
 }
+
+export class ForceDownloadDTO {
+  @IsString()
+  @IsNotEmpty()
+  type: 'oz' | 'og';
+}

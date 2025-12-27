@@ -14,6 +14,11 @@ export class FetcherService {
     @Inject(W3CRequest) private w3cRequest: AxiosInstance,
   ) {}
 
+  public async adminForceDownload(type: 'oz' | 'og') {
+    const matches = await this.loadW3cMatches(type, true);
+    await this.createW3CMatches(matches);
+  }
+
   @Cron(CronExpression.EVERY_30_MINUTES, {
     waitForCompletion: true,
     name: 'fetch',
@@ -51,7 +56,10 @@ export class FetcherService {
     }
   }
 
-  private async loadW3cMatches(type: 'oz' | 'og'): Promise<W3CMatch[]> {
+  private async loadW3cMatches(
+    type: 'oz' | 'og',
+    force = false,
+  ): Promise<W3CMatch[]> {
     let gameMode = 0;
     if (type === 'og') gameMode = 1001;
     if (type === 'oz') gameMode = 1002;
@@ -83,6 +91,10 @@ export class FetcherService {
         offset += limit;
 
         output.push(...data.matches);
+
+        if (force) {
+          continue;
+        }
 
         const dbCount = await this.prisma.w3ChampionsMatch.count({
           where: { id: { in: data.matches.map((m) => m.id) } },
