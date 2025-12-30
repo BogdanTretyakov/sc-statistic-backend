@@ -105,12 +105,16 @@ export class MapperService implements OnModuleInit {
               throw new Error('Unauthorized');
             }
             if (error.response?.status === 429) {
-              this.w3cRequest.clearHourLimits();
-              this.logger.warn(`Got 429, rate limit exceeded`);
+              const dayLimit =
+                await this.w3cRequest.dayLimiter.currentReservoir();
+              const hourLimit =
+                await this.w3cRequest.hourLimiter.currentReservoir();
+              this.logger.warn(
+                `Got 429, rate limit exceeded. Day limit: ${dayLimit}, hour limit: ${hourLimit}`,
+              );
               break;
             }
             if (error.response?.status) {
-              await this.w3cRequest.incrementReservoir();
               const process = await this.prisma.mapProcess.upsert({
                 where: { filePath: fileName },
                 update: { downloadError: error.response.status },

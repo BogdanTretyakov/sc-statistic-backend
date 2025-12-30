@@ -11,7 +11,6 @@ const limitConfig = {
 @Injectable()
 export class W3CReplayRequestService {
   public limiter: Bottleneck;
-  private limiters = Array<Bottleneck>();
   private axios = axios.create({
     baseURL: 'https://website-backend.w3champions.com',
     responseType: 'arraybuffer',
@@ -21,28 +20,22 @@ export class W3CReplayRequestService {
     },
   });
 
+  public dayLimiter = new Bottleneck({
+    maxConcurrent: 1,
+    reservoir: limitConfig.perDay - 1,
+    reservoirRefreshAmount: limitConfig.perDay - 1,
+    reservoirRefreshInterval: 24 * 60 * 60 * 1000,
+    minTime: 0,
+  });
+
+  public hourLimiter = new Bottleneck({
+    reservoir: limitConfig.perHour - 1,
+    reservoirRefreshAmount: limitConfig.perHour - 1,
+    reservoirRefreshInterval: 60 * 60 * 1000,
+  });
+
   constructor() {
-    this.limiters.push(
-      new Bottleneck({
-        reservoir: limitConfig.perHour - 1,
-        reservoirRefreshAmount: limitConfig.perHour - 1,
-        reservoirRefreshInterval: 60 * 60 * 1000,
-      }),
-    );
-
-    this.limiters.push(
-      new Bottleneck({
-        maxConcurrent: 1,
-        reservoir: limitConfig.perDay - 1,
-        reservoirRefreshAmount: limitConfig.perDay - 1,
-        reservoirRefreshInterval: 24 * 60 * 60 * 1000,
-        minTime: 0,
-      }),
-    );
-
-    this.limiter = this.limiters.reduce((acc, limiter) =>
-      acc ? acc.chain(limiter) : limiter,
-    );
+    this.limiter = this.hourLimiter.chain(this.dayLimiter);
   }
 
   async get<T = any>(
@@ -54,20 +47,12 @@ export class W3CReplayRequestService {
 
   async getLimit() {
     return Promise.all(
-      this.limiters.map((limiter) => limiter.currentReservoir()),
+      [this.dayLimiter, this.hourLimiter].map((limiter) =>
+        limiter.currentReservoir(),
+      ),
     ).then((reservoirs) => {
       const values = reservoirs.filter(isNotNil);
       return values.length ? Math.min(...values) : 0;
     });
-  }
-
-  clearHourLimits() {
-    this.limiters[0].updateSettings({ reservoir: 0 });
-  }
-
-  incrementReservoir() {
-    return Promise.all(
-      this.limiters.map((limiter) => limiter.incrementReservoir(1)),
-    );
   }
 }
