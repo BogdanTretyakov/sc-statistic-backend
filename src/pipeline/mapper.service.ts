@@ -112,7 +112,7 @@ export class MapperService implements OnModuleInit {
               this.logger.warn(
                 `Got 429, rate limit exceeded. Day limit: ${dayLimit}, hour limit: ${hourLimit}`,
               );
-              break;
+              return;
             }
             if (error.response?.status) {
               const process = await this.prisma.mapProcess.upsert({
