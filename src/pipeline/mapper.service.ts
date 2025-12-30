@@ -27,43 +27,42 @@ export class MapperService implements OnModuleInit {
 
   private async processW3C() {
     this.logger.verbose('Cron: Downloading W3C replays');
-    let reservoir = await this.w3cRequest.getLimit();
 
-    if (!reservoir) {
-      this.logger.log('W3C reservoir exceeded, skipping');
+    if (!this.w3cRequest.checkAvailable()) {
+      this.logger.verbose('W3C rate limited, skipping run');
+      return;
     }
 
-    let totalSuccess = 0;
+    const loggerState = {
+      success: 0,
+      error: 0,
+      limitExceeded: false,
+    };
 
-    while (reservoir) {
-      const pending = await this.prisma.w3ChampionsMatch.findMany({
-        where: {
-          // There possible lag when saving at W3C side, waiting for proceed
-          time: { lte: dayjs().subtract(1, 'hour').toDate() },
-          OR: [
-            {
-              mapProcessId: null,
+    const pending = await this.prisma.w3ChampionsMatch.findMany({
+      where: {
+        // There possible lag when saving at W3C side, waiting for proceed
+        time: { lte: dayjs().subtract(1, 'hour').toDate() },
+        OR: [
+          {
+            mapProcessId: null,
+          },
+          {
+            processId: {
+              downloadError: { not: 500 },
             },
-            {
-              processId: {
-                downloadError: { not: 500 },
-              },
-            },
-          ],
-        },
-        orderBy: {
-          time: 'asc',
-        },
-        select: {
-          id: true,
-        },
-        take: reservoir,
-      });
+          },
+        ],
+      },
+      orderBy: {
+        time: 'asc',
+      },
+      select: {
+        id: true,
+      },
+    });
 
-      if (!pending.length) {
-        break;
-      }
-
+    try {
       for (const match of pending) {
         const fileName = `${match.id}.w3g`;
         const filePath = this.getPath(fileName);
@@ -95,7 +94,7 @@ export class MapperService implements OnModuleInit {
             },
           });
           this.logger.verbose(`Mapped replay ${match.id}`);
-          totalSuccess++;
+          loggerState.success++;
         } catch (error) {
           if (isAxiosError(error)) {
             if (error.response?.status === 401) {
@@ -105,13 +104,10 @@ export class MapperService implements OnModuleInit {
               throw new Error('Unauthorized');
             }
             if (error.response?.status === 429) {
-              const dayLimit =
-                await this.w3cRequest.dayLimiter.currentReservoir();
-              const hourLimit =
-                await this.w3cRequest.hourLimiter.currentReservoir();
               this.logger.warn(
-                `Got 429, rate limit exceeded. Day limit: ${dayLimit}, hour limit: ${hourLimit}`,
+                `Got 429, rate limit exceeded. Skipping until hour end`,
               );
+              loggerState.limitExceeded = true;
               return;
             }
             if (error.response?.status) {
@@ -136,6 +132,8 @@ export class MapperService implements OnModuleInit {
                 },
               });
 
+              loggerState.error++;
+
               this.logger.error(
                 `W3C replay ${match.id} failed with status ${error.response.status}`,
               );
@@ -143,11 +141,24 @@ export class MapperService implements OnModuleInit {
           }
         }
       }
-      reservoir = await this.w3cRequest.getLimit();
-    }
-
-    if (totalSuccess > 0) {
-      this.logger.log(`Mapped ${totalSuccess} W3C replays`);
+    } finally {
+      if (pending.length) {
+        const logMessages = Array<string>();
+        if (loggerState.success) {
+          logMessages.push(`Mapped ${loggerState.success} W3C replays`);
+        }
+        if (loggerState.error) {
+          logMessages.push(`Failed to map ${loggerState.error} W3C replays`);
+        }
+        if (loggerState.limitExceeded) {
+          const countSkipped =
+            pending.length - loggerState.success - loggerState.error;
+          logMessages.push(
+            `Skipped ${countSkipped} W3C replays due to rate limit`,
+          );
+        }
+        this.logger.log(logMessages.join('\n'));
+      }
     }
   }
 
