@@ -1,98 +1,109 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Survival Chaos Statistics Backend & Replay Parser
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend service for parsing game replays and providing aggregated statistical analytics through an API.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+The system extracts structured data from replay files, stores it in a relational database, and exposes analytical endpoints for further consumption by external services or frontend applications.
 
-## Description
+## Features
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Replay parsing**
+  - Extraction of match, player, bonus, and timing data
+  - Validation and normalization of replay contents
+  - Support for background and scheduled parsing jobs
 
-## Project setup
+- **Statistics storage**
+  - Normalized relational data model
+  - Optimized queries for analytical workloads
 
-```bash
-$ yarn install
-```
+- **Analytics API**
+  - Win rate calculations
+  - Match duration statistics (average, median, percentiles)
+  - Bonus-based and mode-based aggregations
+  - Flexible filtering by date ranges and parameters
 
-## Compile and run the project
+- **Background processing**
+  - Scheduled replay ingestion
+  - Periodic recalculation of aggregates
 
-```bash
-# development
-$ yarn run start
+## Technology Stack
 
-# watch mode
-$ yarn run start:dev
+- **Node.js**
+- **NestJS**
+- **Prisma**
+- **PostgreSQL**
+- **Docker / Docker Compose**
+- **Kysely** (for analytical SQL queries, if applicable)
+- **Cron jobs** for scheduled tasks
 
-# production mode
-$ yarn run start:prod
-```
+## High-Level Architecture
 
-## Run tests
+External data provider(s) → Replay files → Parser → Database → Analytics Service → API
 
-```bash
-# unit tests
-$ yarn run test
+- The parser is responsible only for replay decoding and validation
+- The backend service handles persistence and analytics
+- Business logic is intentionally kept out of the frontend
 
-# e2e tests
-$ yarn run test:e2e
+## Installation
 
-# test coverage
-$ yarn run test:cov
-```
+### Requirements
 
-## Deployment
+- Node.js >= 18
+- Docker
+- PostgreSQL (local or containerized)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### Setup
 
 ```bash
-$ yarn install -g @nestjs/mau
-$ mau deploy
+git clone https://github.com/BogdanTretyakov/sc-statistic-backend.git
+cd sc-statistic-backend
+yarn install
+
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Environment
 
-## Resources
+```bash
 
-Check out a few resources that may come in handy when working with NestJS:
+cp .env.example .env
+docker-compose -f docker-compose.dev.yml up -d
+```
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Database Migrations
 
-## Support
+```bash
+yarn prisma migrate dev
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Running the Service
 
-## Stay in touch
+```bash
+yarn start:dev
+```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Usage
+
+### Game ID's provider
+
+Service used `wikidata.service` for getting data about game id's. Check out typing for yours implements or just use my public repo for getting game data
+
+### Admin panel
+
+There is admin panel at [localhost:4000/admin](localhost:4000/admin). For replay parsing and analytics working you MUST specify wiki data key for every unique map version
+
+### Data provider
+
+Data from external providers coming in 3 steps:
+
+1. `fetcher.service` get lists of matches and store match meta and replay url
+1. `mapper.service` downloads replay binary file
+1. `replay.service` parsing downloaded replays, writing parsed data and cleans up garbage
+
+All tasks doing asynchronously by cron jobs. For adding new providers just implement needed external provider at first two services
+
+### API
+
+Check out `analytic.controller`. There is no OpenAPI or some same API Schemas.
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+WTFPL
