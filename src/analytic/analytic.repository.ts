@@ -1,15 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/common/prisma.service';
 import type { BaseAnalyticDto, BaseRaceDto } from './lib/dto';
-import { PlayerEvents, ProcessError } from '@prisma/client';
-import { groupBy, mapValues } from 'lodash';
+import { PlayerEvents, ProcessError, PlayerDataType } from '@prisma/client';
+import { mapValues } from 'lodash';
 import { DumpService } from './dump.service';
 import { matchFilter, playerFilter } from './lib/prisma';
 import { KyselyService } from 'src/common/kysely.service';
-import { sql, type CaseWhenBuilder } from 'kysely';
+import { sql } from 'kysely';
 import { addMatchFilter, addPlayerWhere } from './lib/kysely';
 import { isNotNil } from 'src/pipeline/lib/guards';
-import type { DB } from 'src/common/types/kysely';
 
 @Injectable()
 export class AnalyticRepository {
@@ -131,6 +130,7 @@ export class AnalyticRepository {
 
   private async getRaceStats(dto: BaseAnalyticDto) {
     const whereMatch = matchFilter(dto);
+    const playerId = dto.playerId;
 
     const eventsIn = [
       PlayerEvents.INITIAL_RACE,
@@ -144,6 +144,7 @@ export class AnalyticRepository {
         eventType: { in: eventsIn },
         player: {
           match: whereMatch,
+          platformPlayerId: playerId ? { equals: playerId } : undefined,
         },
       },
       _count: { _all: true },
@@ -153,6 +154,7 @@ export class AnalyticRepository {
       by: ['raceId', 'place'],
       where: {
         match: whereMatch,
+        platformPlayerId: playerId ? { equals: playerId } : undefined,
       },
       _count: { _all: true },
     });
@@ -238,70 +240,6 @@ export class AnalyticRepository {
     }));
   }
 
-  private async getRacesStatsByQuantile(dto: BaseAnalyticDto) {
-    const { quantile_from, quantile_to, ...restDto } = dto;
-    const quantileSteps = [10, 20, 40, 50, 60, 70, 75, 80, 85, 90];
-
-    const query = this.kysely
-      .selectFrom('Player')
-      .innerJoin('Match', 'Match.id', 'Player.matchId')
-      .$call((qb) => addMatchFilter(restDto, qb))
-      .select((q) => [
-        (q) => {
-          let caseBuilder = q.case() as unknown as CaseWhenBuilder<
-            DB,
-            'Match' | 'Player',
-            unknown,
-            number
-          >;
-          quantileSteps.forEach((step, idx, arr) => {
-            if (!idx) return;
-            caseBuilder = caseBuilder
-              .when(q.ref('Match.avgQuantile'), '<=', step)
-              .then(arr[idx - 1]);
-          });
-          return caseBuilder.else(100).end().as('quantile_group');
-        },
-        'Player.raceId',
-        q
-          .cast<number>(
-            q.fn.sum<bigint>((s) =>
-              s
-                .case()
-                .when(q.ref('Player.place'), '=', 1)
-                .then(1)
-                .else(0)
-                .end(),
-            ),
-            'integer',
-          )
-
-          .as('wins'),
-        q.cast<number>(q.fn.count<bigint>('Match.id'), 'integer').as('total'),
-      ])
-      .groupBy(['quantile_group', 'Player.raceId'])
-      .orderBy('quantile_group')
-      .orderBy('Player.raceId');
-
-    const data = await query.execute();
-
-    return Object.values(
-      mapValues(
-        groupBy(data, (d) => d.raceId),
-        (val, race) => ({
-          race,
-          winrate: val.map(({ wins }, idx) => {
-            const total = val[idx]?.total || 0;
-            if (!total) return null;
-            return +((wins / total) * 100).toFixed(2) || null;
-          }),
-          quantile: val.map(({ quantile_group }) => quantile_group),
-          totalMatches: val.map(({ total }) => total),
-        }),
-      ),
-    );
-  }
-
   private async getMatchesCountByQuantile(dto: BaseAnalyticDto) {
     const { quantile_from, quantile_to, ...restDto } = dto;
 
@@ -323,15 +261,179 @@ export class AnalyticRepository {
     );
   }
 
-  async getRacesData(dto: BaseAnalyticDto) {
-    const [racesData, groupedRacesWinrate, matchesByQuantile] =
-      await Promise.all([
-        this.getRaceStats(dto),
-        this.getRacesStatsByQuantile(dto),
-        this.getMatchesCountByQuantile(dto),
-      ]);
+  private async getGlobalUltimatesStats(dto: BaseAnalyticDto) {
+    const baseQuery = addMatchFilter(
+      dto,
+      this.kysely
+        .selectFrom('PlayerData as pd')
+        .innerJoin('Player as p', 'pd.playerId', 'p.id')
+        .innerJoin('Match', 'p.matchId', 'Match.id'),
+    ).where(
+      'pd.type',
+      '=',
+      sql<PlayerDataType>`${PlayerDataType.ULTIMATE}::"PlayerDataType"`,
+    );
+    const totalPicks = baseQuery.select((s) =>
+      s.fn.count('pd.playerId').distinct().as('total'),
+    );
 
-    return { racesData, groupedRacesWinrate, matchesByQuantile };
+    const winrateQuery = this.kysely
+      .selectFrom(baseQuery.select(['pd.value', 'p.place', 'Match.id']).as('b'))
+      .crossJoin(totalPicks.as('t'))
+      .select((s) => [
+        s.ref('b.value').as('ultimateId'),
+        sql<number>`COUNT(DISTINCT ${s.ref('b.id')})::float / ${s.ref('total')}`.as(
+          'pickRate',
+        ),
+        sql<number>`COUNT(DISTINCT CASE WHEN ${s.ref('b.place')} = 1 THEN ${s.ref('b.id')} END)::float
+      / NULLIF(COUNT(DISTINCT ${s.ref('b.id')}),0)`.as('winRate'),
+      ])
+      .groupBy(['b.value', 't.total']);
+
+    const winrates = await winrateQuery.execute();
+
+    return winrates
+      .map(({ ultimateId, pickRate, winRate }) => {
+        return {
+          id: ultimateId,
+          pickrate: +(pickRate * 100).toFixed(2),
+          winrate: +(winRate * 100).toFixed(2),
+        };
+      })
+      .filter(isNotNil);
+  }
+
+  private async getLeaversByQuantile(dto: BaseAnalyticDto) {
+    const leaversByQuantile = addMatchFilter(
+      dto,
+      this.kysely.selectFrom('Match'),
+      { skipLeavers: true },
+    )
+      .select([
+        'avgQuantile as quantile',
+        sql<number>`
+          COUNT(*) FILTER (WHERE "hasLeavers")::float
+          / NULLIF(COUNT(*), 0)
+        `.as('leaverRate'),
+      ])
+      .groupBy('avgQuantile')
+      .orderBy('avgQuantile');
+
+    const data = await leaversByQuantile.execute();
+
+    return data
+      .filter(({ leaverRate }) => leaverRate)
+      .map(({ quantile, leaverRate }) => [
+        quantile,
+        +(leaverRate * 100).toFixed(2),
+      ]);
+  }
+
+  private async getMatchDurations(dto: BaseAnalyticDto) {
+    const durationBuckets = addMatchFilter(
+      dto,
+      this.kysely.selectFrom('Match'),
+    ).select([
+      sql<number>`percentile_disc(0.1) WITHIN GROUP (ORDER BY "duration")`.as(
+        '10',
+      ),
+      sql<number>`percentile_disc(0.2) WITHIN GROUP (ORDER BY "duration")`.as(
+        '20',
+      ),
+      sql<number>`percentile_disc(0.3) WITHIN GROUP (ORDER BY "duration")`.as(
+        '30',
+      ),
+      sql<number>`percentile_disc(0.4) WITHIN GROUP (ORDER BY "duration")`.as(
+        '40',
+      ),
+      sql<number>`percentile_disc(0.5) WITHIN GROUP (ORDER BY "duration")`.as(
+        '50',
+      ),
+      sql<number>`percentile_disc(0.6) WITHIN GROUP (ORDER BY "duration")`.as(
+        '60',
+      ),
+      sql<number>`percentile_disc(0.7) WITHIN GROUP (ORDER BY "duration")`.as(
+        '70',
+      ),
+      sql<number>`percentile_disc(0.8) WITHIN GROUP (ORDER BY "duration")`.as(
+        '80',
+      ),
+      sql<number>`percentile_disc(0.9) WITHIN GROUP (ORDER BY "duration")`.as(
+        '90',
+      ),
+    ]);
+
+    return durationBuckets.executeTakeFirst();
+  }
+
+  private async getMatchesByHour(dto: BaseAnalyticDto) {
+    const matchesByHour = addMatchFilter(dto, this.kysely.selectFrom('Match'))
+      .select((s) => [
+        sql<number>`EXTRACT(HOUR FROM ${s.ref('Match.endAt')})`.as('hour'),
+        sql<number>`
+          ROUND(
+            COUNT(*)::numeric
+            / NULLIF(SUM(COUNT(*)) OVER (), 0) * 100,
+            2
+          )
+        `.as('pctMatches'),
+      ])
+      .groupBy('hour')
+      .orderBy('hour');
+
+    const data = await matchesByHour.execute();
+
+    return data.map(({ hour, pctMatches }) => [hour, pctMatches]);
+  }
+
+  private async getMatchesByDay(dto: BaseAnalyticDto) {
+    const matchesByDay = addMatchFilter(dto, this.kysely.selectFrom('Match'))
+      .select((s) => [
+        sql<number>`EXTRACT(DOW FROM ${s.ref('Match.endAt')})`.as('weekday'), // 0 = Sunday
+        sql<number>`
+          ROUND(
+            COUNT(*)::numeric
+            / NULLIF(SUM(COUNT(*)) OVER (), 0) * 100,
+            2
+          )
+        `.as('pctMatches'),
+      ])
+      .groupBy('weekday')
+      .orderBy('weekday');
+
+    const data = await matchesByDay.execute();
+
+    return data.map(({ weekday, pctMatches }) => [weekday, pctMatches]);
+  }
+
+  async getRacesData(dto: BaseAnalyticDto) {
+    const [
+      racesData,
+      matchesByQuantile,
+      ultimatesData,
+      leaverRate,
+      matchDurations,
+      matchesByHour,
+      matchesByDay,
+    ] = await Promise.all([
+      this.getRaceStats(dto),
+      this.getMatchesCountByQuantile(dto),
+      this.getGlobalUltimatesStats(dto),
+      this.getLeaversByQuantile(dto),
+      this.getMatchDurations(dto),
+      this.getMatchesByHour(dto),
+      this.getMatchesByDay(dto),
+    ]);
+
+    return {
+      racesData,
+      matchesByQuantile,
+      ultimatesData,
+      leaverRate,
+      matchDurations,
+      matchesByHour,
+      matchesByDay,
+    };
   }
 
   private async getBonusStats(dto: BaseRaceDto) {
@@ -409,109 +511,226 @@ export class AnalyticRepository {
     }));
   }
 
-  private async getUpgradeHeatmap<const T extends PlayerEvents[]>(
-    dto: BaseRaceDto,
-    eventType: T,
-  ) {
-    const query = this.kysely
-      .with('lvlEvent', (db) => {
-        const query = db
-          .selectFrom('PlayerEvent as pe')
-          .select([
-            'pe.playerMatchId',
-            'pe.eventType',
-            'pe.time',
-            'pe.eventId',
-            sql<number>`ROW_NUMBER() OVER (
-              PARTITION BY
-                  pe."playerMatchId",
-                  pe."eventType",
-                  pe."eventId"
-              ORDER BY
-                  pe."time" ASC
-          )`.as('level'),
-          ])
-          .where(
-            'pe.eventType',
-            'in',
-            eventType.map((type) => sql<PlayerEvents>`${type}::"PlayerEvents"`),
-          )
-          .innerJoin('Player', 'pe.playerMatchId', 'Player.id');
-
-        return addPlayerWhere(dto, query);
-      })
-      .selectFrom('lvlEvent')
-      .select(({ fn }) => [
-        'lvlEvent.eventId',
-        'lvlEvent.eventType',
-        'lvlEvent.level',
-        sql<number>`ROUND(${fn.avg('lvlEvent.time')})::Int`.as('avgTime'),
-      ])
-      .groupBy(['lvlEvent.eventType', 'lvlEvent.eventId', 'lvlEvent.level'])
-      .orderBy('lvlEvent.eventId')
-      .orderBy('lvlEvent.level', 'asc');
-
-    const rawHeatmap = await query.execute();
-
-    // Record<eventId, Record<level, avg_time>>
-    const heatmap = {} as Record<string, Record<number, number>>;
-
-    rawHeatmap.forEach((row) => {
-      if (!heatmap[row.eventId]) {
-        heatmap[row.eventId] = {};
-      }
-
-      heatmap[row.eventId][row.level] = row.avgTime;
-    });
-
-    return heatmap;
-  }
-
-  private async getHeroBuyStats(dto: BaseRaceDto) {
-    const query = addPlayerWhere(
+  private async getRacePlayerDataRates(dto: BaseRaceDto, type: PlayerDataType) {
+    const baseQuery = addPlayerWhere(
       dto,
       this.kysely
-        .selectFrom('PlayerEvent')
-        .innerJoin('Player', 'PlayerEvent.playerMatchId', 'Player.id')
-        .innerJoin('Match as m', 'Player.matchId', 'm.id')
-        .innerJoinLateral(
-          (eb) =>
-            eb
-              .selectFrom('PlayerEvent as pe')
-              .select((s) => [s.fn.min(s.ref('pe.time')).as('firstBuyTime')])
-              .where(
-                'pe.eventType',
-                '=',
-                sql<PlayerEvents>`${PlayerEvents.HERO_BUY}::"PlayerEvents"`,
-              )
-              .whereRef('pe.eventId', '=', 'PlayerEvent.eventId')
-              .whereRef('pe.playerMatchId', '=', 'PlayerEvent.playerMatchId')
-              .as('first'),
-          (join) => join.onTrue(),
-        )
-        .select((s) => [
-          'PlayerEvent.eventId as heroId',
-          sql<number>`COUNT(*)::float / NULLIF(COUNT(DISTINCT ${s.ref('m.id')}), 0)`.as(
-            'avgCount',
-          ),
-          s.fn.avg('first.firstBuyTime').$castTo<number>().as('avgFirstBuySec'),
-        ]),
+        .selectFrom('PlayerData as pd')
+        .innerJoin('Player', 'pd.playerId', 'Player.id')
+        .innerJoin('Match as m', 'Player.matchId', 'm.id'),
     )
+      .$if(type === PlayerDataType.ULTIMATE, (q) =>
+        q.where(
+          'pd.type',
+          '=',
+          sql<PlayerDataType>`${PlayerDataType.ULTIMATE}::"PlayerDataType"`,
+        ),
+      )
+      .$if(type === PlayerDataType.AURA, (q) =>
+        q.where(
+          'pd.type',
+          '=',
+          sql<PlayerDataType>`${PlayerDataType.AURA}::"PlayerDataType"`,
+        ),
+      );
+
+    const totalPicks = baseQuery.select((s) =>
+      s.fn.count('pd.playerId').distinct().as('total'),
+    );
+
+    const winrateQuery = this.kysely
+      .selectFrom(
+        baseQuery.select(['pd.value', 'Player.place', 'm.id']).as('b'),
+      )
+      .crossJoin(totalPicks.as('t'))
+      .select((s) => [
+        s.ref('b.value').as('ultimateId'),
+        sql<number>`COUNT(DISTINCT ${s.ref('b.id')})::float / ${s.ref('total')}`.as(
+          'pickRate',
+        ),
+        sql<number>`COUNT(DISTINCT CASE WHEN ${s.ref('b.place')} = 1 THEN ${s.ref('b.id')} END)::float
+      / NULLIF(COUNT(DISTINCT ${s.ref('b.id')}),0)`.as('winRate'),
+      ])
+      .groupBy(['b.value', 't.total']);
+
+    const winrates = await winrateQuery.execute();
+
+    return winrates
+      .map(({ ultimateId, pickRate, winRate }) => {
+        return {
+          id: ultimateId,
+          pickrate: +pickRate.toFixed(2),
+          winrate: +winRate.toFixed(2),
+        };
+      })
+      .filter(isNotNil);
+  }
+
+  private async getUpgradesTimeline(dto: BaseRaceDto, winnersOnly = false) {
+    const BUCKET_SIZE = 60;
+
+    const timelineQuery = addMatchFilter(
+      dto,
+      this.kysely
+        .selectFrom('PlayerEvent as pe')
+        .innerJoin('Player as p', 'pe.playerMatchId', 'p.id')
+        .innerJoin('Match', 'p.matchId', 'Match.id'),
+    )
+      .where('pe.eventType', 'in', [
+        sql<PlayerEvents>`${PlayerEvents.BASE_UPGRADE}::"PlayerEvents"`,
+        sql<PlayerEvents>`${PlayerEvents.TOWER_UPGRADE}::"PlayerEvents"`,
+      ])
+      .where('p.raceId', '=', dto.race)
+      .$if(winnersOnly, (q) => q.where('p.place', '=', 1))
+      .select((s) => [
+        'pe.eventId as upgradeId',
+        'p.matchId',
+        sql<number>`ROW_NUMBER() OVER (
+          PARTITION BY ${s.ref('p.id')}, ${s.ref('pe.eventId')}
+          ORDER BY ${s.ref('pe.time')}
+        )`.as('entryN'),
+        'pe.time as time',
+      ])
+      .as('eventsWithN');
+
+    const avgTimeQuery = this.kysely
+      .selectFrom(timelineQuery)
+      .select([
+        'upgradeId',
+        'entryN',
+        sql<number>`FLOOR(AVG(time / 1000)::numeric / ${BUCKET_SIZE}) * ${BUCKET_SIZE}`.as(
+          'timeBucket',
+        ),
+      ])
+      .orderBy('timeBucket', 'asc')
+      .groupBy(['upgradeId', 'entryN']);
+
+    const rows = await avgTimeQuery.execute();
+
+    // агрегируем в объект { bucket: [upgradeIds] }
+    const timeline: Record<number, string[]> = {};
+
+    for (const row of rows) {
+      const bucket = Number(row.timeBucket);
+      if (!timeline[bucket]) timeline[bucket] = [];
+      if (!timeline[bucket].includes(row.upgradeId))
+        timeline[bucket].push(row.upgradeId);
+    }
+
+    return timeline;
+  }
+
+  private async getHeroesAvg(dto: BaseRaceDto, winnersOnly = false) {
+    const perMatch = addPlayerWhere(
+      dto,
+      this.kysely
+        .selectFrom('PlayerEvent as pe')
+        .innerJoin('Player', 'pe.playerMatchId', 'Player.id')
+        .innerJoin('Match as m', 'Player.matchId', 'm.id'),
+    )
+      .$if(winnersOnly, (q) => q.where('Player.place', '=', 1))
       .where(
-        'PlayerEvent.eventType',
+        'pe.eventType',
         '=',
         sql<PlayerEvents>`${PlayerEvents.HERO_BUY}::"PlayerEvents"`,
       )
-      .groupBy('PlayerEvent.eventId')
-      .orderBy('avgCount', 'desc');
+      .select((s) => [
+        'm.id as matchId',
+        'pe.eventId as heroId',
+        s.fn.countAll<number>().as('buyCount'),
+      ])
+      .groupBy(['m.id', 'pe.eventId']);
+
+    const query = this.kysely
+      .selectFrom(perMatch.as('pm'))
+      .select((s) => [
+        'pm.heroId',
+        s.fn.avg('pm.buyCount').$castTo<number>().as('avgBuysPerMatch'),
+      ])
+      .groupBy('pm.heroId')
+      .orderBy('avgBuysPerMatch', 'desc');
 
     const data = await query.execute();
 
-    return data.map((d) => ({
-      hero: d.heroId,
-      avgCount: +d.avgCount.toFixed(2),
-      avgFirstBuy: d.avgFirstBuySec ? Math.round(d.avgFirstBuySec ?? 0) : null,
+    return data.map(({ heroId, avgBuysPerMatch }) => ({
+      id: heroId,
+      avgBuysPerMatch: +avgBuysPerMatch.toFixed(2),
     }));
+  }
+
+  private async getAvgFirstHeroBuyTime(dto: BaseRaceDto, winnersOnly = false) {
+    const base = addPlayerWhere(
+      dto,
+      this.kysely
+        .selectFrom('PlayerEvent as pe')
+        .innerJoin('Player', 'pe.playerMatchId', 'Player.id')
+        .innerJoin('Match as m', 'Player.matchId', 'm.id'),
+    )
+      .where(
+        'pe.eventType',
+        '=',
+        sql<PlayerEvents>`
+      ${PlayerEvents.HERO_BUY}::"PlayerEvents"
+    `,
+      )
+      .$if(winnersOnly, (q) => q.where('Player.place', '=', 1));
+
+    const firstBuys = base
+      .select((s) => [
+        'pe.eventId as heroId',
+        'Player.matchId as matchId',
+        s.fn.min('pe.time').as('firstBuyTime'),
+      ])
+      .groupBy(['heroId', 'matchId']);
+
+    const query = this.kysely
+      .selectFrom(firstBuys.as('fb'))
+      .select((s) => [
+        'fb.heroId',
+        s.fn.avg('fb.firstBuyTime').$castTo<number>().as('avgFirstBuyMs'),
+      ])
+      .groupBy('fb.heroId')
+      .orderBy('avgFirstBuyMs');
+
+    const data = await query.execute();
+
+    return data.map(({ heroId, avgFirstBuyMs }) => ({
+      id: heroId,
+      time: Math.round(avgFirstBuyMs / 1000),
+    }));
+  }
+
+  private async getWinrateVsRaces(dto: BaseRaceDto) {
+    const baseMatches = addPlayerWhere(
+      dto,
+      this.kysely
+        .selectFrom('Player')
+        .innerJoin('Match as m', 'Player.matchId', 'm.id')
+        .select((s) => [
+          'Player.matchId',
+          sql<boolean>`${s.ref('Player.place')} = 1`.as('isWin'),
+        ]),
+    );
+
+    const opponents = this.kysely
+      .selectFrom(baseMatches.as('bm'))
+      .innerJoin('Player as op', 'op.matchId', 'bm.matchId')
+      .where('op.raceId', '!=', dto.race)
+      .select(['op.raceId as enemyRace', 'bm.matchId', 'bm.isWin']);
+
+    const query = this.kysely
+      .selectFrom(opponents.as('o'))
+      .select((s) => [
+        'o.enemyRace as race',
+        sql<number>`(
+          ROUND((COUNT(DISTINCT CASE WHEN ${s.ref('o.isWin')} THEN ${s.ref('o.matchId')} END)::numeric
+            / NULLIF(COUNT(DISTINCT ${s.ref('o.matchId')}), 0)) * 100, 2)
+          )::float`.as('winrate'),
+        s.fn.count('o.matchId').as('matchesCount'),
+      ])
+      .groupBy('race');
+
+    return query.execute();
   }
 
   async getRaceData(dto: BaseRaceDto) {
@@ -525,28 +744,42 @@ export class AnalyticRepository {
         },
       },
     });
-    const [upgrades, towerUpgrades, buildings, heroes, bonuses] =
-      await Promise.all([
-        this.getUpgradeHeatmap(dto, [PlayerEvents.BASE_UPGRADE]),
-        this.getUpgradeHeatmap(dto, [PlayerEvents.TOWER_UPGRADE]),
-        this.getUpgradeHeatmap(dto, [
-          PlayerEvents.UP_BARRACK2,
-          PlayerEvents.UP_BARRACK3,
-          PlayerEvents.UP_BARRACK4,
-          PlayerEvents.UP_FORT2,
-          PlayerEvents.UP_FORT3,
-        ]),
-        this.getHeroBuyStats(dto),
-        this.getBonusStats(dto),
-      ]);
+    const [
+      bonuses,
+      ultimates,
+      auras,
+      upgrades,
+      upgradesWinner,
+      heroesAvg,
+      heroesAvgWinner,
+      avgFirstHeroBuyTime,
+      avgFirstHeroBuyTimeWinner,
+      winrateVsRaces,
+    ] = await Promise.all([
+      this.getBonusStats(dto),
+      this.getRacePlayerDataRates(dto, PlayerDataType.ULTIMATE),
+      this.getRacePlayerDataRates(dto, PlayerDataType.AURA),
+      this.getUpgradesTimeline(dto),
+      this.getUpgradesTimeline(dto, true),
+      this.getHeroesAvg(dto),
+      this.getHeroesAvg(dto, true),
+      this.getAvgFirstHeroBuyTime(dto),
+      this.getAvgFirstHeroBuyTime(dto, true),
+      this.getWinrateVsRaces(dto),
+    ]);
 
     return {
       matchesCount,
-      upgrades,
-      towerUpgrades,
-      buildings,
-      heroes,
       bonuses,
+      ultimates,
+      auras,
+      upgrades,
+      upgradesWinner,
+      heroesAvg,
+      heroesAvgWinner,
+      avgFirstHeroBuyTime,
+      avgFirstHeroBuyTimeWinner,
+      winrateVsRaces,
     };
   }
 }

@@ -1,12 +1,20 @@
 import { IntersectionType } from '@nestjs/mapped-types';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsBoolean,
   IsDate,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
+  Length,
+  Max,
+  Min,
+  ValidateNested,
 } from 'class-validator';
 
 function ToBoolean() {
@@ -74,21 +82,55 @@ export class MatchDto {
   rankingPlayers = false;
 }
 
+export class PlayerIdDto {
+  @IsOptional()
+  @IsNumber()
+  playerId?: number;
+}
+
 export class BaseAnalyticDto extends IntersectionType(
   MapDto,
   DateDto,
   MatchDto,
+  PlayerIdDto,
 ) {}
 export class BaseRaceDto extends BaseAnalyticDto {
   @IsNotEmpty()
   race: string;
+}
+
+export class PlayerSearchDto {
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+}
+
+class MatchPlayerFilter extends PlayerIdDto {
+  @IsOptional()
+  @IsString()
+  @Length(4, 4)
+  race?: string;
 
   @IsOptional()
-  @ToBoolean()
-  @IsBoolean()
-  onlyWinners?: boolean;
+  @IsString()
+  @Length(4, 4)
+  bonus?: string;
 
-  @IsString({ each: true })
   @IsOptional()
-  vsRace?: string | string[];
+  @IsInt()
+  @Min(1)
+  @Max(4)
+  place?: number;
+}
+
+export class SearchMatchesDto extends BaseAnalyticDto {
+  @ArrayMinSize(1)
+  @ArrayMaxSize(4)
+  @ValidateNested()
+  filters: MatchPlayerFilter[];
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  page?: number;
 }

@@ -69,6 +69,7 @@ export class ReplayParsingError extends Error {}
 
 export class ReplayParser {
   private duration = 0;
+  private timeOffset = 0;
   private playersMap = new Map<number, PlayerState>();
   private metadata!: ReplayMetadata;
   private gameData!: WikiDataMapping;
@@ -442,6 +443,19 @@ export class ReplayParser {
     }
 
     for (const id of itemIDs) {
+      if (!this.timeOffset) {
+        const isTrigger =
+          this.lookup.raceByPicker.has(id) ||
+          this.lookup.bonuses.has(id) ||
+          this.lookup.barrack.has(id) ||
+          this.lookup.baseUpgrades.has(id) ||
+          this.lookup.fort.has(id);
+
+        if (isTrigger) {
+          this.timeOffset = this.duration;
+        }
+      }
+
       this.processTypeSpecificId(id, playerState);
       // Check race by unit buy
       if (!playerState.raceFinalized && this.lookup.raceByUnit.has(id)) {
@@ -522,6 +536,11 @@ export class ReplayParser {
         if (this.mapType === 'oz') {
           player.bonus = uniq(player.bonus);
         }
+        player.time = Math.max(player.time - this.timeOffset, 0);
+        player.events = player.events.map((ev) => ({
+          ...ev,
+          time: Math.max(ev.time - this.timeOffset, 0),
+        }));
 
         return player;
       });
@@ -541,7 +560,7 @@ export class ReplayParser {
     return {
       players: sortedPlayers,
       duration: Math.max(
-        ...Array.from(this.playersMap.values()).map(({ time }) => time),
+        ...Array.from(sortedPlayers.values()).map(({ time }) => time),
       ),
       map: this.metadata.map.mapName.split(/[\\/]/g).pop() || '',
     };

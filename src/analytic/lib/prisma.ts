@@ -1,6 +1,5 @@
 import { type Prisma } from '@prisma/client';
 import type { BaseAnalyticDto, BaseRaceDto, MapDto } from './dto';
-import { isNotNil } from 'src/pipeline/lib/guards';
 
 export function mapFilter(dto: MapDto): Prisma.MapVersionWhereInput {
   return {
@@ -18,6 +17,7 @@ export function matchFilter(dto: BaseAnalyticDto): Prisma.MatchWhereInput {
     quantile_from,
     quantile_to,
     withLeavers,
+    playerId,
   } = dto;
   const output: Prisma.MatchWhereInput = {
     map: mapFilter(dto),
@@ -25,6 +25,10 @@ export function matchFilter(dto: BaseAnalyticDto): Prisma.MatchWhereInput {
 
   if (!withLeavers) {
     output.hasLeavers = false;
+  }
+
+  if (playerId) {
+    output.players = { some: { platformPlayerId: playerId } };
   }
 
   if (date_from || date_to) {
@@ -50,27 +54,11 @@ export function matchFilter(dto: BaseAnalyticDto): Prisma.MatchWhereInput {
 }
 
 export function playerFilter(dto: BaseRaceDto): Prisma.PlayerWhereInput {
-  const { race, onlyWinners, vsRace } = dto;
-  const versusRaces = [vsRace].flat().filter(isNotNil);
+  const { race, playerId } = dto;
   const output: Prisma.PlayerWhereInput = {
     raceId: race,
+    platformPlayerId: playerId,
   };
-
-  if (onlyWinners) {
-    output.place = 1;
-  }
-
-  if (versusRaces.length) {
-    output.match = {
-      players: {
-        some: {
-          raceId: {
-            in: versusRaces,
-          },
-        },
-      },
-    };
-  }
 
   return output;
 }
