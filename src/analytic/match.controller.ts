@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { MatchRepository } from './match.repository';
 import { PlayerSearchDto, SearchMatchesDto } from './lib/dto';
 
@@ -14,5 +14,11 @@ export class MatchController {
   @Post('/filter')
   async filterMatch(@Body() dto: SearchMatchesDto) {
     return this.repo.searchMatches(dto);
+  }
+
+  @Get('/events/:id')
+  async getMatchEvents(@Param('id') id: string) {
+    const matchId = BigInt(id);
+    return this.repo.getMatchEvents(matchId);
   }
 }

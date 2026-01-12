@@ -114,7 +114,6 @@ export class MatchRepository {
                     'bonus',
                   ),
                 )
-                .$castTo<string[]>()
                 .as('bonus'),
               sp
                 .selectFrom('PlayerData as pd')
@@ -136,18 +135,22 @@ export class MatchRepository {
                 )
                 .select('pd.value')
                 .as('aura'),
-              jsonArrayFrom(
-                sp
-                  .selectFrom('PlayerEvent as pe')
-                  .whereRef('pe.playerMatchId', '=', 'p.id')
-                  .select([
-                    'pe.eventId as id',
-                    'pe.eventType as type',
-                    'pe.time',
-                  ])
-                  .orderBy('time'),
-              ).as('events'),
             ])
+            .$if(dto.events, (q) =>
+              q.select((sp) => [
+                jsonArrayFrom(
+                  sp
+                    .selectFrom('PlayerEvent as pe')
+                    .whereRef('pe.playerMatchId', '=', 'p.id')
+                    .select([
+                      'pe.eventId as id',
+                      'pe.eventType as type',
+                      'pe.time',
+                    ])
+                    .orderBy('time'),
+                ).as('events'),
+              ]),
+            )
             .orderBy('p.place', 'asc'),
         ).as('players'),
       ])
@@ -161,5 +164,24 @@ export class MatchRepository {
       .select((s) => s.fn.count('Match.id').$castTo<number>().as('total'))
       .executeTakeFirst();
     return { total: total?.total ?? 0, perPage: dto.perPage, data };
+  }
+
+  public async getMatchEvents(id: bigint) {
+    const query = this.kysely
+      .selectFrom('Player as p')
+      // @ts-expect-error kysely typings
+      .where('p.matchId', '=', id)
+      .select((sp) => [
+        'p.id as playerId',
+        jsonArrayFrom(
+          sp
+            .selectFrom('PlayerEvent as pe')
+            .whereRef('pe.playerMatchId', '=', 'p.id')
+            .select(['pe.eventId as id', 'pe.eventType as type', 'pe.time'])
+            .orderBy('time'),
+        ).as('events'),
+      ]);
+
+    return query.execute();
   }
 }

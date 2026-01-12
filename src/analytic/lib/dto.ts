@@ -139,4 +139,8 @@ export class SearchMatchesDto extends BaseAnalyticDto {
   @IsPositive()
   @Max(25)
   perPage = 10;
+
+  @IsOptional()
+  @IsBoolean()
+  events = false;
 }

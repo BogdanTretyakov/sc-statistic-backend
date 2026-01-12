@@ -18,8 +18,7 @@ export class FetcherService {
   ) {}
 
   public async adminForceDownload(type: 'oz' | 'og', season?: string) {
-    const matches = await this.loadW3cMatches(type, true, season);
-    await this.createW3CMatches(matches);
+    await this.loadW3cMatches(type, true, season);
   }
 
   @Cron(CronExpression.EVERY_30_MINUTES, {
@@ -32,11 +31,9 @@ export class FetcherService {
 
   private async fetchW3Champions() {
     this.logger.verbose('Fetching W3C matches...');
-    const ogMatches = await this.loadW3cMatches('og');
-    await this.createW3CMatches(ogMatches);
+    await this.loadW3cMatches('og');
 
-    const ozMatches = await this.loadW3cMatches('oz');
-    await this.createW3CMatches(ozMatches);
+    await this.loadW3cMatches('oz');
   }
 
   private async createW3CMatches(allMatches: W3CMatch[]) {
@@ -76,7 +73,7 @@ export class FetcherService {
     type: 'oz' | 'og',
     force = false,
     season?: string,
-  ): Promise<W3CMatch[]> {
+  ) {
     let gameMode = 0;
     if (type === 'og') gameMode = 1001;
     if (type === 'oz') gameMode = 1002;
@@ -85,8 +82,6 @@ export class FetcherService {
 
     let count = Infinity;
     let offset = 0;
-
-    const output = Array<W3CMatch>();
 
     while (offset <= count) {
       if (offset) {
@@ -108,7 +103,7 @@ export class FetcherService {
         count = data.count;
         offset += limit;
 
-        output.push(...data.matches);
+        await this.createW3CMatches(data.matches);
 
         if (force) {
           continue;
@@ -119,9 +114,9 @@ export class FetcherService {
         });
 
         if (dbCount) {
-          if (output.length - dbCount) {
+          if (data.matches.length - dbCount) {
             this.logger.log(
-              `Fetched new W3C ${type.toLocaleUpperCase()} matches: ${output.length - dbCount}`,
+              `Fetched new W3C ${type.toLocaleUpperCase()} matches: ${data.matches.length - dbCount}`,
               `${FetcherService.name}${type.toLocaleUpperCase()}`,
             );
           }
@@ -135,7 +130,5 @@ export class FetcherService {
         return [];
       }
     }
-
-    return output;
   }
 }
