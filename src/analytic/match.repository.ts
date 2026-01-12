@@ -35,8 +35,6 @@ export class MatchRepository {
   }
 
   public async searchMatches(dto: SearchMatchesDto) {
-    const perPage = 10;
-
     const baseQuery = addMatchFilter(dto, this.kysely.selectFrom('Match'));
 
     const filteredQuery = dto.filters.reduce((query, filter) => {
@@ -68,6 +66,7 @@ export class MatchRepository {
 
     const query = filteredQuery
       .innerJoin('MapProcess', 'Match.mapProcessId', 'MapProcess.id')
+      .innerJoin('MapVersion as mv', 'mv.id', 'MapProcess.mapId')
       .leftJoin(
         'W3ChampionsMatch',
         'W3ChampionsMatch.mapProcessId',
@@ -83,6 +82,10 @@ export class MatchRepository {
           )
           .$castTo<string>()
           .as('platformId'),
+        'mv.mapType as type',
+        sql<string>`CONCAT(${s.ref('mv.mapVersion')}, ${s.ref('mv.mapPatch')})`.as(
+          'version',
+        ),
         'Match.duration as duration',
         'Match.endAt as endAt',
         'Match.avgQuantile as quantile',
@@ -149,14 +152,14 @@ export class MatchRepository {
         ).as('players'),
       ])
       .orderBy('Match.endAt', 'desc')
-      .limit(perPage)
-      .offset(((dto.page ?? 1) - 1) * perPage);
+      .limit(dto.perPage)
+      .offset(((dto.page ?? 1) - 1) * dto.perPage);
 
     const data = await query.execute();
 
     const total = await filteredQuery
       .select((s) => s.fn.count('Match.id').$castTo<number>().as('total'))
       .executeTakeFirst();
-    return { total: total?.total ?? 0, perPage, data };
+    return { total: total?.total ?? 0, perPage: dto.perPage, data };
   }
 }

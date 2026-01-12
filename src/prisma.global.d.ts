@@ -6,6 +6,7 @@ declare global {
       name: string;
       mmr: number;
       quantile: number;
+      place?: number;
     };
   }
 }

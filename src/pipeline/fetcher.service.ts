@@ -5,12 +5,15 @@ import type { W3CMatch, W3CMatches } from './types/w3champions';
 import { W3CRequest } from './requests.module';
 import type { AxiosInstance } from 'axios';
 import { chunk } from 'lodash';
+import { KyselyService } from 'src/common/kysely.service';
+import { sql } from 'kysely';
 
 @Injectable()
 export class FetcherService {
   private logger = new Logger(FetcherService.name);
   constructor(
     private prisma: PrismaService,
+    private readonly kysely: KyselyService,
     @Inject(W3CRequest) private w3cRequest: AxiosInstance,
   ) {}
 
@@ -38,21 +41,34 @@ export class FetcherService {
 
   private async createW3CMatches(allMatches: W3CMatch[]) {
     for (const matches of chunk(allMatches, 50)) {
-      await this.prisma.w3ChampionsMatch.createMany({
-        data: matches.map((match) => ({
+      const values = matches
+        .map((match) => ({
           id: match.id,
           season: String(match.season),
           time: new Date(match.endTime),
-          players: match.teams.flatMap(({ players }) =>
+          players: match.teams.flatMap(({ matchRanking, players }) =>
             players.map((player) => ({
+              place: matchRanking + 1,
               name: player.battleTag,
               mmr: player.oldMmr,
               quantile: Math.floor(player.oldMmrQuantile * 100),
             })),
           ),
-        })),
-        skipDuplicates: true,
-      });
+        }))
+        .map((m) => ({
+          ...m,
+          players: sql`(${JSON.stringify(m.players)}::json)`,
+        }));
+
+      await this.kysely
+        .insertInto('W3ChampionsMatch')
+        .values(values)
+        .onConflict((co) =>
+          co.column('id').doUpdateSet((eb) => ({
+            players: eb.ref('excluded.players'),
+          })),
+        )
+        .execute();
     }
   }
 

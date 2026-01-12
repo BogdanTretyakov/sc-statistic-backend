@@ -66,16 +66,15 @@ export class AnalyticRepository {
     const matchesCount = await this.prisma.match.count({
       where,
     });
-    const { endAt: lastMatchTime } =
-      (await this.prisma.match.findFirst({
-        where,
-        orderBy: {
-          endAt: 'desc',
-        },
-        select: {
-          endAt: true,
-        },
-      })) ?? {};
+    const { endAt: lastMatchTime } = await this.prisma.match.findFirstOrThrow({
+      where,
+      orderBy: {
+        endAt: 'desc',
+      },
+      select: {
+        endAt: true,
+      },
+    });
     const data = await this.prisma.match.aggregate({
       where,
       _min: { duration: true, endAt: true, avgMmr: true },
@@ -97,10 +96,7 @@ export class AnalyticRepository {
     lowerUpperDurationQuery = addMatchFilter(dto, lowerUpperDurationQuery);
 
     const { lower, upper } =
-      (await lowerUpperDurationQuery.executeTakeFirst()) ?? {
-        lower: 0,
-        upper: 0,
-      };
+      await lowerUpperDurationQuery.executeTakeFirstOrThrow();
     const filters = {
       duration: [Math.round(lower ?? 0), Math.round(upper ?? 0)] as const,
       endAt: [data._min.endAt, data._max.endAt] as const,
@@ -323,10 +319,10 @@ export class AnalyticRepository {
 
     return data
       .filter(({ leaverRate }) => leaverRate)
-      .map(({ quantile, leaverRate }) => [
-        quantile,
-        +(leaverRate * 100).toFixed(2),
-      ]);
+      .map(
+        ({ quantile, leaverRate }) =>
+          [quantile, +(leaverRate * 100).toFixed(2)] as const,
+      );
   }
 
   private async getMatchDurations(dto: BaseAnalyticDto) {
@@ -406,6 +402,33 @@ export class AnalyticRepository {
     return data.map(({ weekday, pctMatches }) => [weekday, pctMatches]);
   }
 
+  private async getPlayerPlaces(dto: BaseAnalyticDto) {
+    const query = addMatchFilter(
+      dto,
+      this.kysely
+        .selectFrom('Player')
+        .innerJoin('Match', 'Player.matchId', 'Match.id'),
+    )
+      .$if(!!dto.playerId, (q) =>
+        q.where('Player.platformPlayerId', '=', dto.playerId!),
+      )
+      .select((s) => [
+        'Player.place as place',
+        sql<number>`
+            ROUND(
+              COUNT(*)::numeric
+              / NULLIF(SUM(COUNT(*)) OVER (), 0) * 100,
+              2
+            )::float
+          `.as('pct'),
+        s.fn.count('Player.id').as('matchesCount'),
+      ])
+      .groupBy('Player.place')
+      .orderBy('Player.place');
+
+    return query.execute();
+  }
+
   async getRacesData(dto: BaseAnalyticDto) {
     const [
       racesData,
@@ -415,6 +438,7 @@ export class AnalyticRepository {
       matchDurations,
       matchesByHour,
       matchesByDay,
+      playerPlaces,
     ] = await Promise.all([
       this.getRaceStats(dto),
       this.getMatchesCountByQuantile(dto),
@@ -423,6 +447,7 @@ export class AnalyticRepository {
       this.getMatchDurations(dto),
       this.getMatchesByHour(dto),
       this.getMatchesByDay(dto),
+      this.getPlayerPlaces(dto),
     ]);
 
     return {
@@ -433,6 +458,7 @@ export class AnalyticRepository {
       matchDurations,
       matchesByHour,
       matchesByDay,
+      playerPlaces,
     };
   }
 

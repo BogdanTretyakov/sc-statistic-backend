@@ -1,4 +1,5 @@
 import type { Logger } from '@nestjs/common';
+import type { ModuleRef } from '@nestjs/core';
 import type { PrismaClient } from '@prisma/client';
 import type { Kysely } from 'kysely';
 import type { DB } from 'src/common/types/kysely';
@@ -9,4 +10,5 @@ export interface MigrationContext {
   prisma: PrismaClient;
   kysely: Kysely<DB>;
   wikiData: WikiDataService;
+  moduleRef: ModuleRef;
 }

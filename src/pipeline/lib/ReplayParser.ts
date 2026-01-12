@@ -379,7 +379,6 @@ export class ReplayParser {
   private processAction(action: Action, playerId: number) {
     const playerState = this.playersMap.get(playerId);
     if (!playerState || playerState.leaved) return;
-    playerState.time = this.duration;
 
     const itemIDs: string[] = [];
     const addObject = (ids: (number[] | undefined)[]) => {
@@ -390,6 +389,10 @@ export class ReplayParser {
     };
 
     switch (action.id) {
+      case 0x1a: {
+        playerState.time = this.duration;
+        break;
+      }
       case 0x10:
         addObject([action.orderId]);
         break;
@@ -534,7 +537,7 @@ export class ReplayParser {
           player.bonus = [player.bonus.pop()].filter(isNotNil);
         }
         if (this.mapType === 'oz') {
-          player.bonus = uniq(player.bonus);
+          player.bonus = uniq(player.bonus).slice(0, 1);
         }
         player.time = Math.max(player.time - this.timeOffset, 0);
         player.events = player.events.map((ev) => ({

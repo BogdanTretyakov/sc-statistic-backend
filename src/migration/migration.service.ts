@@ -6,6 +6,7 @@ import { KyselyService } from 'src/common/kysely.service';
 import { PrismaService } from 'src/common/prisma.service';
 import { WikiDataService } from 'src/common/wikiData.service';
 import type { MigrationContext } from './types';
+import { ModuleRef } from '@nestjs/core';
 
 @Injectable()
 export class MigrationService implements OnModuleInit {
@@ -14,6 +15,7 @@ export class MigrationService implements OnModuleInit {
   private migrationFiles = Array<string>();
 
   constructor(
+    private readonly moduleRef: ModuleRef,
     private readonly prisma: PrismaService,
     private readonly kysely: KyselyService,
     private readonly wikiData: WikiDataService,
@@ -53,6 +55,7 @@ export class MigrationService implements OnModuleInit {
             kysely: this.kysely,
             prisma: this.prisma,
             wikiData: this.wikiData,
+            moduleRef: this.moduleRef,
           };
           await module.exec(migrationCtx);
           await this.prisma.migrationCustom.upsert({

@@ -133,4 +133,10 @@ export class SearchMatchesDto extends BaseAnalyticDto {
   @IsInt()
   @IsPositive()
   page?: number;
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Max(25)
+  perPage = 10;
 }

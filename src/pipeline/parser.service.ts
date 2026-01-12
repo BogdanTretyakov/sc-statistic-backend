@@ -89,7 +89,9 @@ export class ParserService {
     const output = {
       map,
       endAt: new Date(),
-      players: <Record<string, { mmr: number; quantile: number }>>{},
+      players: <
+        Record<string, { mmr: number; quantile: number; place?: number }>
+      >{},
     };
 
     switch (platform) {
@@ -107,6 +109,7 @@ export class ParserService {
           output.players[player.name] = {
             mmr: player.mmr,
             quantile: player.quantile,
+            place: player.place,
           };
         });
         break;
@@ -131,6 +134,22 @@ export class ParserService {
         id,
         platform,
       );
+
+      const changePlaces = data.players.every(
+        ({ playerName }) => players[playerName]?.place,
+      );
+      if (changePlaces) {
+        let logged = false;
+        for (const player of data.players) {
+          if (players[player.playerName].place !== player.place && !logged) {
+            this.logger.warn(
+              `Incorrect place parsed in match ${mapProcess.id} ${mapProcess.filePath}`,
+            );
+            logged = true;
+          }
+          player.place = players[player.playerName].place ?? player.place;
+        }
+      }
 
       const [avgMmr, avgQuantile] = (() => {
         const playersArr = Object.values(players);
