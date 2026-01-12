@@ -66,15 +66,17 @@ export class AnalyticRepository {
     const matchesCount = await this.prisma.match.count({
       where,
     });
-    const { endAt: lastMatchTime } = await this.prisma.match.findFirstOrThrow({
-      where,
-      orderBy: {
-        endAt: 'desc',
-      },
-      select: {
-        endAt: true,
-      },
-    });
+    const { endAt: lastMatchTime } = await this.prisma.match
+      .findFirstOrThrow({
+        where,
+        orderBy: {
+          endAt: 'desc',
+        },
+        select: {
+          endAt: true,
+        },
+      })
+      .catch(() => ({ endAt: new Date(0) }));
     const data = await this.prisma.match.aggregate({
       where,
       _min: { duration: true, endAt: true, avgMmr: true },
@@ -95,8 +97,9 @@ export class AnalyticRepository {
 
     lowerUpperDurationQuery = addMatchFilter(dto, lowerUpperDurationQuery);
 
-    const { lower, upper } =
-      await lowerUpperDurationQuery.executeTakeFirstOrThrow();
+    const { lower, upper } = await lowerUpperDurationQuery
+      .executeTakeFirstOrThrow()
+      .catch(() => ({ lower: 0, upper: 0 }));
     const filters = {
       duration: [Math.round(lower ?? 0), Math.round(upper ?? 0)] as const,
       endAt: [data._min.endAt, data._max.endAt] as const,
