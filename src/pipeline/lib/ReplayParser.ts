@@ -89,6 +89,7 @@ export class ReplayParser {
     raceByPicker: new Map<string, string>(),
     raceByUnit: new Map<string, string>(),
     bonusByUnit: new Map<string, string>(),
+    multipleRaceBonuses: new Set<string>(),
   };
 
   constructor(
@@ -125,18 +126,14 @@ export class ReplayParser {
   }
 
   private buildLookup(): typeof this.lookup {
+    const raceDataArr = Object.values(this.gameData.raceData);
+
     return {
-      auras: new Set(
-        Object.values(this.gameData.raceData).flatMap((r) => r.auras),
-      ),
-      bonuses: new Set(
-        Object.values(this.gameData.raceData).flatMap((r) => r.bonuses),
-      ),
-      heroes: new Set(
-        Object.values(this.gameData.raceData).flatMap((r) => r.heroes),
-      ),
+      auras: new Set(raceDataArr.flatMap((r) => r.auras)),
+      bonuses: new Set(raceDataArr.flatMap((r) => r.bonuses)),
+      heroes: new Set(raceDataArr.flatMap((r) => r.heroes)),
       barrack: new Map(
-        Object.values(this.gameData.raceData).flatMap((r) =>
+        raceDataArr.flatMap((r) =>
           r.buildings.barrack
             .slice(-3)
             .map(
@@ -153,15 +150,13 @@ export class ReplayParser {
         ),
       ),
       baseUpgrades: new Set(
-        Object.values(this.gameData.raceData).flatMap((r) =>
+        raceDataArr.flatMap((r) =>
           Object.values(r.baseUpgrades).concat(...r.magic),
         ),
       ),
-      towerUpgrades: new Set(
-        Object.values(this.gameData.raceData).flatMap((r) => r.towerUpgrades),
-      ),
+      towerUpgrades: new Set(raceDataArr.flatMap((r) => r.towerUpgrades)),
       fort: new Map(
-        Object.values(this.gameData.raceData).flatMap((r) =>
+        raceDataArr.flatMap((r) =>
           r.buildings.fort
             .slice(-2)
             .map(
@@ -180,13 +175,10 @@ export class ReplayParser {
         ]),
       ) as Record<string, string>,
       raceByPicker: new Map(
-        Object.values(this.gameData.raceData).map((val) => [
-          val.bonusPicker,
-          val.id,
-        ]),
+        raceDataArr.map((val) => [val.bonusPicker, val.id]),
       ),
       raceByUnit: new Map(
-        Object.values(this.gameData.raceData).flatMap((r) =>
+        raceDataArr.flatMap((r) =>
           [
             r.heroes,
             Object.values(r.units),
@@ -197,9 +189,16 @@ export class ReplayParser {
         ),
       ),
       bonusByUnit: new Map(
-        Object.values(this.gameData.raceData).flatMap((r) =>
-          Object.entries(r.bonusByItemId),
-        ),
+        raceDataArr.flatMap((r) => Object.entries(r.bonusByItemId)),
+      ),
+      multipleRaceBonuses: new Set(
+        raceDataArr.flatMap((r, _, arr) => {
+          return r.bonuses.filter((bonus) =>
+            arr.some(
+              (race) => race.id !== r.id && race.bonuses.includes(bonus),
+            ),
+          );
+        }),
       ),
     };
   }
@@ -540,7 +539,8 @@ export class ReplayParser {
         }
         if (this.mapType === 'oz') {
           const uniqBonus = uniq(player.bonus).filter(
-            (id, _, arr) => arr.length <= 2 || id !== 'nef0',
+            (id, _, arr) =>
+              arr.length <= 2 || !this.lookup.multipleRaceBonuses.has(id),
           );
           player.bonus = uniqBonus;
         }
