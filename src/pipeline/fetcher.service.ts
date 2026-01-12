@@ -17,8 +17,8 @@ export class FetcherService {
     @Inject(W3CRequest) private w3cRequest: AxiosInstance,
   ) {}
 
-  public async adminForceDownload(type: 'oz' | 'og') {
-    const matches = await this.loadW3cMatches(type, true);
+  public async adminForceDownload(type: 'oz' | 'og', season?: string) {
+    const matches = await this.loadW3cMatches(type, true, season);
     await this.createW3CMatches(matches);
   }
 
@@ -75,6 +75,7 @@ export class FetcherService {
   private async loadW3cMatches(
     type: 'oz' | 'og',
     force = false,
+    season?: string,
   ): Promise<W3CMatch[]> {
     let gameMode = 0;
     if (type === 'og') gameMode = 1001;
@@ -100,6 +101,7 @@ export class FetcherService {
             gameMode,
             offset,
             limit,
+            season,
           },
         });
 

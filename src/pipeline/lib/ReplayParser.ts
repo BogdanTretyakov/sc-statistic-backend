@@ -75,6 +75,8 @@ export class ReplayParser {
   private gameData!: WikiDataMapping;
   private mapType!: string;
 
+  private selectActions: Action['id'][] = [0x1b, 0x1c, 0x19, 0x18, 0x16];
+
   private lookup = {
     auras: new Set<string>(),
     heroes: new Set<string>(),
@@ -380,6 +382,10 @@ export class ReplayParser {
     const playerState = this.playersMap.get(playerId);
     if (!playerState || playerState.leaved) return;
 
+    if (!this.selectActions.includes(action.id)) {
+      playerState.time = this.duration;
+    }
+
     const itemIDs: string[] = [];
     const addObject = (ids: (number[] | undefined)[]) => {
       for (const id of ids) {
@@ -389,10 +395,6 @@ export class ReplayParser {
     };
 
     switch (action.id) {
-      case 0x1a: {
-        playerState.time = this.duration;
-        break;
-      }
       case 0x10:
         addObject([action.orderId]);
         break;
@@ -537,7 +539,10 @@ export class ReplayParser {
           player.bonus = [player.bonus.pop()].filter(isNotNil);
         }
         if (this.mapType === 'oz') {
-          player.bonus = uniq(player.bonus).slice(0, 1);
+          const uniqBonus = uniq(player.bonus).filter(
+            (id, _, arr) => arr.length <= 2 || id !== 'nef0',
+          );
+          player.bonus = uniqBonus;
         }
         player.time = Math.max(player.time - this.timeOffset, 0);
         player.events = player.events.map((ev) => ({
