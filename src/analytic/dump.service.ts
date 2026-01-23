@@ -175,9 +175,11 @@ export class DumpService implements OnModuleInit {
               raceId: player.raceId,
               bonusId: player.playerDatas
                 .filter(({ type }) => type === PlayerDataType.BONUS)
+                .map(({ value }) => value)
                 .join(','),
               ultimateId: player.playerDatas
                 .filter(({ type }) => type === PlayerDataType.ULTIMATE)
+                .map(({ value }) => value)
                 .join(','),
             });
 

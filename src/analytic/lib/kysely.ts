@@ -27,30 +27,34 @@ export function addMatchFilter<
     .innerJoin('MapVersion', 'MapVersion.id', 'Match.mapId')
     .where('MapVersion.dataKey', '=', `${type}_${version}`)
     .where('MapVersion.ignore', '=', false)
-    .$if(!!platform, (q) => {
-      const qq = q.innerJoin(
-        'MapProcess as fmp',
-        'Match.mapProcessId',
-        'fmp.id',
-      );
-      switch (platform) {
-        case MatchPlatform.W3Champions:
-          return qq
+    .$if(!!platform, (q) =>
+      q.where((qw) =>
+        qw.exists((qq) =>
+          qq
+            .selectFrom('MapProcess')
+            .whereRef('MapProcess.id', '=', 'Match.mapProcessId')
             .where(
-              'fmp.platform',
+              'MapProcess.platform',
               '=',
               sql<MatchPlatform>`${platform}::"MatchPlatform"`,
             )
-            .innerJoin(
-              'W3ChampionsMatch as fw3cm',
-              'fw3cm.mapProcessId',
-              'fmp.id',
-            )
-            .$if(!!season, (sq) => sq.where('fw3cm.season', '=', season!));
-        default:
-          return q;
-      }
-    })
+            .$if(!!season, (sq) => {
+              switch (platform) {
+                case MatchPlatform.W3Champions:
+                  return sq
+                    .innerJoin(
+                      'W3ChampionsMatch',
+                      'W3ChampionsMatch.mapProcessId',
+                      'MapProcess.id',
+                    )
+                    .where('W3ChampionsMatch.season', '=', season!);
+                default:
+                  return sq;
+              }
+            }),
+        ),
+      ),
+    )
     .$if(!withLeavers && !options?.skipLeavers, (q) =>
       q.where('Match.hasLeavers', '=', false),
     )
@@ -60,9 +64,14 @@ export function addMatchFilter<
       q.where('Match.duration', '>=', duration_from!),
     )
     .$if(!!playerId, (q) =>
-      q
-        .innerJoin('Player as pp', 'pp.matchId', 'Match.id')
-        .where('pp.platformPlayerId', '=', playerId!),
+      q.where((qw) =>
+        qw.exists(
+          qw
+            .selectFrom('Player')
+            .whereRef('Player.matchId', '=', 'Match.id')
+            .where('Player.platformPlayerId', '=', playerId!),
+        ),
+      ),
     )
     .$if(!!duration_to, (q) => q.where('Match.duration', '<=', duration_to!))
     .$if(!!quantile_from, (q) =>

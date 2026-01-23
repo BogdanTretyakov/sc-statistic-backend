@@ -42,6 +42,8 @@ model MapProcess {
   map              MapVersion?        @relation(fields: [mapId], references: [id])
   Match            Match[]
   W3ChampionsMatch W3ChampionsMatch[]
+
+  @@index([platform], map: "idx_platform")
 }
 
 model W3ChampionsMatch {
@@ -52,6 +54,9 @@ model W3ChampionsMatch {
   players      Json        @db.Json
   mapProcessId BigInt?
   processId    MapProcess? @relation(fields: [mapProcessId], references: [id])
+
+  @@index([season], map: "idx_season")
+  @@index([mapProcessId], map: "idx_mapProcessId")
 }
 
 model Match {
