@@ -66,6 +66,8 @@ export type Match = {
     hasLeavers: boolean;
     mapId: number;
     mapProcessId: string;
+    platform: MatchPlatform;
+    season: string;
 };
 export type MigrationCustom = {
     name: string;

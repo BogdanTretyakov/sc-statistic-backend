@@ -28,32 +28,13 @@ export function addMatchFilter<
     .where('MapVersion.dataKey', '=', `${type}_${version}`)
     .where('MapVersion.ignore', '=', false)
     .$if(!!platform, (q) =>
-      q.where((qw) =>
-        qw.exists((qq) =>
-          qq
-            .selectFrom('MapProcess')
-            .whereRef('MapProcess.id', '=', 'Match.mapProcessId')
-            .where(
-              'MapProcess.platform',
-              '=',
-              sql<MatchPlatform>`${platform}::"MatchPlatform"`,
-            )
-            .$if(!!season, (sq) => {
-              switch (platform) {
-                case MatchPlatform.W3Champions:
-                  return sq
-                    .innerJoin(
-                      'W3ChampionsMatch',
-                      'W3ChampionsMatch.mapProcessId',
-                      'MapProcess.id',
-                    )
-                    .where('W3ChampionsMatch.season', '=', season!);
-                default:
-                  return sq;
-              }
-            }),
-        ),
-      ),
+      q
+        .where(
+          'Match.platform',
+          '=',
+          sql<MatchPlatform>`${platform}::"MatchPlatform"`,
+        )
+        .$if(!!season, (q) => q.where('Match.season', '=', season!)),
     )
     .$if(!withLeavers && !options?.skipLeavers, (q) =>
       q.where('Match.hasLeavers', '=', false),

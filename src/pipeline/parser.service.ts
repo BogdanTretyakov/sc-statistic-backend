@@ -19,6 +19,7 @@ import {
 import { rm } from 'fs/promises';
 import { existsSync } from 'fs';
 import { TIME_TO_COUNT_PLAYER_AS_LEAVER } from './lib/const';
+import { KyselyService } from 'src/common/kysely.service';
 
 @Injectable()
 export class ParserService {
@@ -26,6 +27,7 @@ export class ParserService {
 
   constructor(
     private prisma: PrismaService,
+    private kysely: KyselyService,
     private wikiData: WikiDataService,
   ) {}
 
@@ -172,6 +174,22 @@ export class ParserService {
           );
         });
 
+      const { season } = await this.kysely
+        .selectFrom('MapProcess')
+        .leftJoin(
+          'W3ChampionsMatch',
+          'W3ChampionsMatch.mapProcessId',
+          'MapProcess.id',
+        )
+        // @ts-expect-error - kysely types generated incorrectly
+        .where('MapProcess.id', '=', id)
+        .select((s) => s.fn.coalesce('W3ChampionsMatch.season').as('season'))
+        .executeTakeFirstOrThrow();
+
+      if (!season) {
+        throw new Error(`Season not found for MapProcess ${id}: ${filePath}`);
+      }
+
       await this.prisma.$transaction(
         async (prisma) => {
           const match = await prisma.match.create({
@@ -187,6 +205,8 @@ export class ParserService {
               map: {
                 connect: { id: map.id },
               },
+              platform,
+              season,
             },
             select: { id: true },
           });

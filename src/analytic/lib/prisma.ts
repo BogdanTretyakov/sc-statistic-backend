@@ -1,4 +1,4 @@
-import { MatchPlatform, type Prisma } from '@prisma/client';
+import { type Prisma } from '@prisma/client';
 import type { BaseAnalyticDto, BaseRaceDto, MapDto } from './dto';
 
 export function mapFilter(dto: MapDto): Prisma.MapVersionWhereInput {
@@ -34,16 +34,10 @@ export function matchFilter(dto: BaseAnalyticDto): Prisma.MatchWhereInput {
   }
 
   if (platform) {
-    output.mapProcess = {
-      platform,
-      ...(platform === MatchPlatform.W3Champions && season
-        ? {
-            W3ChampionsMatch: {
-              some: { season },
-            },
-          }
-        : {}),
-    };
+    output.platform = platform;
+    if (season) {
+      output.season = season;
+    }
   }
 
   if (date_from || date_to) {

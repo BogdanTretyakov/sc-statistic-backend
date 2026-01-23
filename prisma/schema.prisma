@@ -60,21 +60,24 @@ model W3ChampionsMatch {
 }
 
 model Match {
-  id           BigInt     @id @default(autoincrement())
+  id           BigInt        @id @default(autoincrement())
   duration     Int
   endAt        DateTime
   avgMmr       Int?
-  avgQuantile  Int?       @db.SmallInt
+  avgQuantile  Int?          @db.SmallInt
   hasLeavers   Boolean
   mapId        Int
   mapProcessId BigInt
-  map          MapVersion @relation(fields: [mapId], references: [id])
-  mapProcess   MapProcess @relation(fields: [mapProcessId], references: [id])
+  map          MapVersion    @relation(fields: [mapId], references: [id])
+  mapProcess   MapProcess    @relation(fields: [mapProcessId], references: [id])
+  platform     MatchPlatform
+  season       String
   players      Player[]
 
   @@index([endAt], map: "idx_end_at")
   @@index([mapId], map: "idx_map")
   @@index([avgQuantile, duration, hasLeavers, mapId], map: "idx_quantile_leavers_map_duration")
+  @@index([platform, season], map: "idx_platform_season")
 }
 
 model Player {
