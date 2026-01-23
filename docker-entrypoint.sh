@@ -1,21 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/sh
+# wait-for-postgres.sh
 set -euo pipefail
 
-DB_HOST="${DATABASE_HOST:-db}"
-DB_USER="${DATABASE_USER:-root}"
-DB_NAME="${DATABASE_NAME:-sc_stats}"
-DB_PORT="${DATABASE_PORT:-5432}"
-RETRY_WAIT="${DB_RETRY_WAIT:-4}"
+yarn install --frozen-lockfile
 
-echo "Waiting for Postgres at ${DB_HOST}:${DB_PORT}..."
+export NODE_ENV=production
 
-until pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME"; do
-  echo "Postgres is not ready. Sleeping ${RETRY_WAIT}s..."
-  sleep "$RETRY_WAIT"
+until yarn prisma db pull > /dev/null 2>&1; do
+  echo "Waiting for postgres..."
+  sleep 2
 done
 
-echo "Postgres is ready. Running Prisma migrations..."
-yarn prisma migrate deploy --schema=./prisma/schema.prisma
+yarn prisma generate
+yarn build
+yarn prisma migrate deploy
 
-echo "Starting app..."
 exec yarn start:prod

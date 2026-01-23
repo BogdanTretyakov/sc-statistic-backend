@@ -11,12 +11,14 @@ jobs:
     steps:
       - name: SSH deploy
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          PROJECT_PATH: ${{ vars.PROJECT_PATH }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          envs: PROJECT_PATH
           script: |
-            cd /srv/sc_stats/sc-statistic-backend
+            cd $PROJECT_PATH
             git pull
-            docker compose up -d --build
-            docker image prune -f --filter "until=24h"
+            docker compose up -d --build app

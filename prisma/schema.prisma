@@ -10,8 +10,8 @@ generator kysely {
 
 generator json {
   provider  = "prisma-json-types-generator"
+  allowAny  = "false"
   namespace = "PrismaJson"
-  allowAny  = false
 }
 
 datasource db {
@@ -20,105 +20,83 @@ datasource db {
 }
 
 model MapVersion {
-  id         Int     @id @default(autoincrement())
-  mapName    String  @unique
-  mapType    String? @db.VarChar(2)
-  mapVersion String? @db.VarChar(6)
-  mapPatch   String? @db.VarChar(4)
+  id         Int          @id @default(autoincrement())
+  mapName    String       @unique
+  mapType    String?      @db.VarChar(2)
+  mapVersion String?      @db.VarChar(6)
+  mapPatch   String?      @db.VarChar(4)
   dataKey    String?
-  ignore     Boolean @default(false)
-
+  ignore     Boolean      @default(false)
   MapProcess MapProcess[]
   Match      Match[]
 }
 
-enum MatchPlatform {
-  W3Champions
-}
-
-enum ProcessError {
-  BAD_MAP
-  NO_MAPPING
-  PARSING_ERROR
-}
-
-enum PlayerDataType {
-  BONUS
-  AURA
-  ULTIMATE
-}
-
 model MapProcess {
-  id            BigInt        @id @default(autoincrement())
-  mapId         Int?
-  platform      MatchPlatform
-  filePath      String        @unique
-  mappingError  ProcessError?
-  downloadError Int?          @db.SmallInt
-  processed     Boolean       @default(false)
-
+  id               BigInt             @id @default(autoincrement())
+  mapId            Int?
+  platform         MatchPlatform
+  filePath         String             @unique
+  mappingError     ProcessError?
+  downloadError    Int?               @db.SmallInt
+  processed        Boolean            @default(false)
   map              MapVersion?        @relation(fields: [mapId], references: [id])
-  W3ChampionsMatch W3ChampionsMatch[]
   Match            Match[]
+  W3ChampionsMatch W3ChampionsMatch[]
 }
 
 model W3ChampionsMatch {
-  id           String   @id @db.VarChar(24)
+  id           String      @id @db.VarChar(24)
   time         DateTime
-  season       String   @db.VarChar(4)
+  season       String      @db.VarChar(4)
   /// [W3ChampionsMatchPlayer[]]
-  players      Json     @db.Json
+  players      Json        @db.Json
   mapProcessId BigInt?
-
-  processId MapProcess? @relation(fields: [mapProcessId], references: [id])
+  processId    MapProcess? @relation(fields: [mapProcessId], references: [id])
 }
 
 model Match {
-  id           BigInt   @id @default(autoincrement())
+  id           BigInt     @id @default(autoincrement())
   duration     Int
   endAt        DateTime
   avgMmr       Int?
-  avgQuantile  Int?     @db.SmallInt
+  avgQuantile  Int?       @db.SmallInt
   hasLeavers   Boolean
   mapId        Int
   mapProcessId BigInt
+  map          MapVersion @relation(fields: [mapId], references: [id])
+  mapProcess   MapProcess @relation(fields: [mapProcessId], references: [id])
+  players      Player[]
 
-  map        MapVersion @relation(fields: [mapId], references: [id])
-  mapProcess MapProcess @relation(fields: [mapProcessId], references: [id])
-  players    Player[]
-
-  @@index([endAt], name: "idx_end_at")
-  @@index([mapId], name: "idx_map")
-  @@index([avgQuantile, duration, hasLeavers, mapId], name: "idx_quantile_leavers_map_duration")
+  @@index([endAt], map: "idx_end_at")
+  @@index([mapId], map: "idx_map")
+  @@index([avgQuantile, duration, hasLeavers, mapId], map: "idx_quantile_leavers_map_duration")
 }
 
 model Player {
-  id               BigInt @id @default(autoincrement())
+  id               BigInt         @id @default(autoincrement())
   matchId          BigInt
   platformPlayerId Int
-  place            Int    @db.SmallInt
+  place            Int            @db.SmallInt
   /// Milliseconds from match start
   timeAlive        Int
-  raceId           String @db.VarChar(4)
+  raceId           String         @db.VarChar(4)
   mmr              Int?
-  quantile         Int?   @db.SmallInt
-
-  platformPlayer PlatformPlayer @relation(fields: [platformPlayerId], references: [id])
-  match          Match          @relation(fields: [matchId], references: [id])
-  events         PlayerEvent[]
-  playerDatas    PlayerData[]
+  quantile         Int?           @db.SmallInt
+  match            Match          @relation(fields: [matchId], references: [id])
+  platformPlayer   PlatformPlayer @relation(fields: [platformPlayerId], references: [id])
+  playerDatas      PlayerData[]
+  events           PlayerEvent[]
 
   @@unique([matchId, place])
-  @@index([matchId, mmr], name: "idx_matchId_mmr")
-  @@index([matchId, raceId], name: "idx_match_race")
+  @@index([matchId, mmr], map: "idx_matchId_mmr")
+  @@index([matchId, raceId], map: "idx_match_race")
 }
 
 model PlayerData {
   playerId BigInt
   type     PlayerDataType
   value    String         @db.VarChar(4)
-
-  player Player @relation(fields: [playerId], references: [id])
+  player   Player         @relation(fields: [playerId], references: [id])
 
   @@id([playerId, type, value])
 }
@@ -129,25 +107,9 @@ model PlatformPlayer {
   platform   MatchPlatform
   lastMmr    Int?
   lastSeenAt DateTime
-
-  Player Player[]
+  Player     Player[]
 
   @@unique([name, platform], name: "namePlatform")
-}
-
-enum PlayerEvents {
-  INITIAL_RACE
-  BAN_RACE
-  REPICK_RACE
-  HERO_BUY
-  BASE_UPGRADE
-  TOWER_UPGRADE
-  UP_FORT2
-  UP_FORT3
-  UP_BARRACK2
-  UP_BARRACK3
-  UP_BARRACK4
-  USE_ULTIMATE
 }
 
 model PlayerEvent {
@@ -156,11 +118,10 @@ model PlayerEvent {
   eventId       String       @db.VarChar(4)
   /// Milliseconds from match start
   time          Int
-
-  player Player @relation(fields: [playerMatchId], references: [id])
+  player        Player       @relation(fields: [playerMatchId], references: [id])
 
   @@id([playerMatchId, eventType, eventId, time])
-  @@index([eventType, eventId, playerMatchId], name: "idx_event_type_id_player")
+  @@index([eventType, eventId, playerMatchId], map: "idx_event_type_id_player")
 }
 
 model DatabaseDump {
@@ -181,4 +142,35 @@ model WikiData {
   sha     String
 
   @@id([dataKey, key])
+}
+
+enum MatchPlatform {
+  W3Champions
+}
+
+enum ProcessError {
+  BAD_MAP
+  NO_MAPPING
+  PARSING_ERROR
+}
+
+enum PlayerDataType {
+  BONUS
+  AURA
+  ULTIMATE
+}
+
+enum PlayerEvents {
+  INITIAL_RACE
+  BAN_RACE
+  REPICK_RACE
+  HERO_BUY
+  BASE_UPGRADE
+  TOWER_UPGRADE
+  UP_FORT2
+  UP_FORT3
+  UP_BARRACK2
+  UP_BARRACK3
+  UP_BARRACK4
+  USE_ULTIMATE
 }

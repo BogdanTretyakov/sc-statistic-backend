@@ -23,17 +23,15 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://root:root@postgres:5432/sc_stats?schema=public
-      NODE_ENV: production
-      ADMIN_LOGIN: ${ADMIN_LOGIN}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      W3C_REPLAYS_API_KEY: ${W3C_REPLAYS_API_KEY}
-      WIKI_DATA_REPO: ${WIKI_DATA_REPO}
-      WIKI_DATA_REPO_TOKEN: ${WIKI_DATA_REPO_TOKEN}
       VIRTUAL_PORT: 4000
       VIRTUAL_HOST: ${VIRTUAL_HOST}
       LETSENCRYPT_HOST: ${VIRTUAL_HOST}
     volumes:
+      - .:/app
+      - ./docker-entrypoint.sh:/docker-entrypoint.sh
       - storage:/app/storage
+      - node-modules:/app/node_modules
+      - yarn-cache:/mnt/yarn-cache
     ports:
       - 4000:4000
     depends_on:
@@ -61,3 +59,9 @@ volumes:
 
   storage:
     name: 'sc_stats_storage'
+
+  node-modules:
+    name: 'sc_stats_node_modules'
+
+  yarn-cache:
+    name: 'sc_stats_yarn_cache'
