@@ -48,6 +48,8 @@ services:
       - postgres
     ports:
       - 127.0.0.1:1337:8080
+    networks:
+      - app-net
 
 networks:
   app-net:
