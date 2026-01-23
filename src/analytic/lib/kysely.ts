@@ -1,6 +1,7 @@
-import type { SelectQueryBuilder } from 'kysely';
+import { sql, type SelectQueryBuilder } from 'kysely';
 import type { BaseAnalyticDto, BaseRaceDto } from './dto';
 import type { DB } from 'src/common/types/kysely';
+import { MatchPlatform } from '@prisma/client';
 
 type Options = Partial<{ skipLeavers: boolean }>;
 
@@ -18,12 +19,38 @@ export function addMatchFilter<
     playerId,
     type,
     version,
+    platform,
+    season,
   } = dto;
 
   return query
     .innerJoin('MapVersion', 'MapVersion.id', 'Match.mapId')
     .where('MapVersion.dataKey', '=', `${type}_${version}`)
     .where('MapVersion.ignore', '=', false)
+    .$if(!!platform, (q) => {
+      const qq = q.innerJoin(
+        'MapProcess as fmp',
+        'Match.mapProcessId',
+        'fmp.id',
+      );
+      switch (platform) {
+        case MatchPlatform.W3Champions:
+          return qq
+            .where(
+              'fmp.platform',
+              '=',
+              sql<MatchPlatform>`${platform}::"MatchPlatform"`,
+            )
+            .innerJoin(
+              'W3ChampionsMatch as fw3cm',
+              'fw3cm.mapProcessId',
+              'fmp.id',
+            )
+            .$if(!!season, (sq) => sq.where('fw3cm.season', '=', season!));
+        default:
+          return q;
+      }
+    })
     .$if(!withLeavers && !options?.skipLeavers, (q) =>
       q.where('Match.hasLeavers', '=', false),
     )

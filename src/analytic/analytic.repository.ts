@@ -115,6 +115,26 @@ export class AnalyticRepository {
       },
     });
 
+    const seasons = await this.kysely
+      .selectFrom('Match')
+      .innerJoin('MapProcess', 'MapProcess.id', 'Match.mapProcessId')
+      .innerJoin('MapVersion', 'MapProcess.mapId', 'MapVersion.id')
+      .leftJoin(
+        'W3ChampionsMatch',
+        'W3ChampionsMatch.mapProcessId',
+        'MapProcess.id',
+      )
+      .select((eb) => [
+        'MapProcess.platform as platform',
+        eb.ref('W3ChampionsMatch.season').$castTo<string>().as('season'),
+        eb.fn.count('Match.id').$castTo<number>().as('matches'),
+      ])
+      .where('MapVersion.dataKey', '=', `${dto.type}_${dto.version}`)
+      .where('W3ChampionsMatch.season', 'is not', null)
+      .groupBy(['MapProcess.platform', 'W3ChampionsMatch.season'])
+      .orderBy('W3ChampionsMatch.season', 'desc')
+      .execute();
+
     return {
       lastMatchTime,
       matchesCount,
@@ -124,6 +144,7 @@ export class AnalyticRepository {
       avgDuration: Math.round(data._avg.duration ?? 0),
       minDuration: Math.round(data._min.duration ?? 0),
       maxDuration: Math.round(data._max.duration ?? 0),
+      seasons,
     };
   }
 

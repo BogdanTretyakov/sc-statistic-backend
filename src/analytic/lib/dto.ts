@@ -1,10 +1,12 @@
 import { IntersectionType } from '@nestjs/mapped-types';
+import { MatchPlatform } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   ArrayMinSize,
   IsBoolean,
   IsDate,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -88,11 +90,22 @@ export class PlayerIdDto {
   playerId?: number;
 }
 
+export class SeasonDto {
+  @IsOptional()
+  @IsEnum(MatchPlatform)
+  platform?: MatchPlatform;
+
+  @IsOptional()
+  @IsString()
+  season?: string;
+}
+
 export class BaseAnalyticDto extends IntersectionType(
   MapDto,
   DateDto,
   MatchDto,
   PlayerIdDto,
+  SeasonDto,
 ) {}
 export class BaseRaceDto extends BaseAnalyticDto {
   @IsNotEmpty()

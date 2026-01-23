@@ -42,7 +42,7 @@ export class MapperService implements OnModuleInit {
     const pending = await this.prisma.w3ChampionsMatch.findMany({
       where: {
         // There possible lag when saving at W3C side, waiting for proceed
-        time: { lte: dayjs().subtract(1, 'hour').toDate() },
+        time: { lte: dayjs().subtract(10, 'minute').toDate() },
         OR: [
           {
             mapProcessId: null,
