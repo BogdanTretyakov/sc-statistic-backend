@@ -21,6 +21,4 @@ jobs:
           script: |
             cd $PROJECT_PATH
             git pull
-            chmod +x docker-entrypoint.sh
-            docker compose up -d
-            docker compose restart app
+            docker compose up -d --build
