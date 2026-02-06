@@ -18,7 +18,14 @@ UPDATE "public"."Match"
 SET
   "season" = '23'
 WHERE
-  "public"."Match"."endAt" > '2025-10-06T10:00:00.156Z';
+  "public"."Match"."endAt" > '2025-10-06T10:00:00.156Z'
+  AND "public"."Match"."endAt" <= '2026-01-26T10:54:00.156Z';
+
+UPDATE "public"."Match"
+SET
+  "season" = '24'
+WHERE
+  "public"."Match"."season" is NULL;
 
 ALTER TABLE "public"."Match"
 ALTER COLUMN "platform"
