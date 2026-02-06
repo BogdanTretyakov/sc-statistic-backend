@@ -26,6 +26,7 @@ model MapVersion {
   mapVersion String?      @db.VarChar(6)
   mapPatch   String?      @db.VarChar(4)
   dataKey    String?
+  bonusCount Int          @default(1) @db.SmallInt
   ignore     Boolean      @default(false)
   MapProcess MapProcess[]
   Match      Match[]
@@ -181,4 +182,6 @@ enum PlayerEvents {
   UP_BARRACK3
   UP_BARRACK4
   USE_ULTIMATE
+  UNIT_BUY
+  CANCEL_UPGRADE
 }

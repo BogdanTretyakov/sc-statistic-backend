@@ -7,7 +7,7 @@ import type { Action } from 'w3gjs/dist/types/parsers/ActionParser';
 import type { WikiDataService } from 'src/common/wikiData.service';
 import type { WikiDataMapping } from 'src/common/types/wikiData';
 import { SAME_EVENT_LAG } from './const';
-import { isLeaveGameBlock, isNotNil, isTimeslotBlock } from './guards';
+import { isLeaveGameBlock, isTimeslotBlock } from './guards';
 import uniq from 'lodash/uniq';
 
 type InternalEvent = {
@@ -23,6 +23,7 @@ export type PlayerState = {
   race: string;
   raceFinalized: boolean;
   bonus: string[];
+  mmdBonus: string[];
   ultimate: string[];
   aura: string[];
   events: InternalEvent[];
@@ -74,6 +75,7 @@ export class ReplayParser {
   private metadata!: ReplayMetadata;
   private gameData!: WikiDataMapping;
   private mapType!: string;
+  private bonusCount = 1;
 
   private selectActions: Action['id'][] = [0x1b, 0x1c, 0x19, 0x18, 0x16];
 
@@ -113,6 +115,7 @@ export class ReplayParser {
         race: '',
         raceFinalized: false,
         bonus: [],
+        mmdBonus: [],
         ultimate: [],
         aura: [],
         events: [],
@@ -235,6 +238,7 @@ export class ReplayParser {
       this.gameData = await this.wikiData.getData(mapVersion.dataKey);
       if (!this.gameData) throw new Error();
       this.mapType = mapVersion.mapType;
+      this.bonusCount = mapVersion.bonusCount;
       this.lookup = this.buildLookup();
     } catch (e) {
       await this.prisma.mapVersion.update({
@@ -292,26 +296,24 @@ export class ReplayParser {
   private processMMDtypeOZ(action: Action, playerState: PlayerState) {
     if (action.id !== 0x6b) return;
     const key = action.cache?.key.trim().slice(-4);
-    if (!key || key.length !== 4) return;
-    const race = this.gameData.races[playerState.race];
+    if (!key || key.length !== 4 || key.includes(' ')) return;
+    const race = this.gameData.raceData[playerState.race];
     if (!race) return;
 
     const ultiKey = this.lookup.ultimates[key];
     if (key in this.lookup.ultimates) {
       playerState.ultimate.push(ultiKey);
-      if (key !== ultiKey) {
-        this.insertEvent(playerState, {
-          eventId: ultiKey,
-          eventType: PlayerEvents.USE_ULTIMATE,
-          time: this.duration,
-        });
-      }
+      this.insertEvent(playerState, {
+        eventId: key,
+        eventType: PlayerEvents.USE_ULTIMATE,
+        time: this.duration,
+      });
     }
     if (this.lookup.auras.has(key) && race.auras.includes(key)) {
       playerState.aura.push(key);
     }
     if (this.lookup.bonuses.has(key) && race.bonuses.includes(key)) {
-      playerState.bonus.push(key);
+      playerState.mmdBonus.push(key);
     }
   }
 
@@ -438,6 +440,11 @@ export class ReplayParser {
           } else {
             this.lastEventTime.delete(id);
           }
+          this.insertEvent(playerState, {
+            eventId: id,
+            eventType: PlayerEvents.CANCEL_UPGRADE,
+            time: this.duration,
+          });
         }
 
         break;
@@ -521,6 +528,16 @@ export class ReplayParser {
       if (this.lookup.ultimates[id]) {
         playerState.ultimate.push(this.lookup.ultimates[id]);
       }
+      if (
+        this.lookup.raceByUnit.has(id) &&
+        !this.selectActions.includes(action.id)
+      ) {
+        this.insertEvent(playerState, {
+          eventId: id,
+          eventType: PlayerEvents.UNIT_BUY,
+          time: this.duration,
+        });
+      }
     }
   }
 
@@ -534,13 +551,13 @@ export class ReplayParser {
         events: p.events.filter(({ cancelled }) => !cancelled),
       }))
       .map((player) => {
-        if (this.mapType === 'og') {
-          player.bonus = [player.bonus.pop()].filter(isNotNil);
-        }
-        if (this.mapType === 'oz') {
+        if (player.mmdBonus.length === this.bonusCount) {
+          player.bonus = player.mmdBonus;
+        } else {
           const uniqBonus = uniq(player.bonus).filter(
             (id, _, arr) =>
-              arr.length <= 2 || !this.lookup.multipleRaceBonuses.has(id),
+              arr.length <= this.bonusCount ||
+              !this.lookup.multipleRaceBonuses.has(id),
           );
           player.bonus = uniqBonus;
         }

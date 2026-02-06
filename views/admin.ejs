@@ -23,6 +23,7 @@
       <th width="110">Map Version</th>
       <th width="90">Map Patch</th>
       <th width="85">Data Key</th>
+      <th width="60">Bonus Count</th>
       <th width="40">Ignore</th>
       <th width="40"></th>
     </thead>
@@ -62,6 +63,9 @@
           </select>
         </td>
         <td>
+          <input form="form<%= idx %>" name="bonusCount" type="number" value="<%= item.bonusCount ?? 1 %>" min="1" max="10" step="1">
+        </td>
+        <td>
           <input form="form<%= idx %>" name="ignore" type="checkbox" <%= item.ignore ? 'checked' : '' %>>
         </td>
         <td><input form="form<%= idx %>" type="submit" value="Save" /></td>
@@ -74,7 +78,7 @@
       background: #5c2b2b !important; /* мягкий красноватый */
     }
 
-    input[type="text"] {
+    input[type="text"], input[type="number"] {
       width: 100%;
       border: 1px solid #555;
       border-radius: 4px;
@@ -82,7 +86,7 @@
       background: #1e1e1e;
       color: #f1f3f5;
     }
-    input[type="text"]:focus {
+    input[type="text"]:focus, input[type="number"]:focus {
       outline: none;
       border-color: #4dabf7;
       box-shadow: 0 0 4px #4dabf7;

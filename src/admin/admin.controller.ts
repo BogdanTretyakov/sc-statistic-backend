@@ -79,6 +79,7 @@ export class AdminController {
         mapVersion: body.mapVersion || null,
         mapPatch: body.mapPatch || null,
         dataKey: body.dataKey || null,
+        bonusCount: Number(body.bonusCount) || 1,
         ignore: Boolean(body.ignore),
       },
       select: { mapName: true },
