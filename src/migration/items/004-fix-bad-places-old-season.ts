@@ -1,19 +1,10 @@
-import { FetcherService } from 'src/pipeline/fetcher.service';
 import type { MigrationContext } from '../types';
 import { jsonArrayFrom } from 'kysely/helpers/postgres';
 import { sql } from 'kysely';
 
-export function exec({ kysely, moduleRef, logger }: MigrationContext) {
-  const fetcher = moduleRef.get(FetcherService, { strict: false });
-
+export function exec({ kysely, logger }: MigrationContext) {
   // IIFE for cancel awaiting
   void (async () => {
-    logger.log('Refetch OG matches...');
-    await fetcher.adminForceDownload('og', '22');
-
-    logger.log('Refetch OZ matches...');
-    await fetcher.adminForceDownload('oz', '22');
-
     logger.log('Fix bad places...');
 
     let lastId = 0n;
@@ -32,6 +23,7 @@ export function exec({ kysely, moduleRef, logger }: MigrationContext) {
         .where('W3ChampionsMatch.season', '=', '22')
         .select((s) => [
           s.ref('Match.id').$castTo<bigint>().as('id'),
+          s.ref('Match.mapProcessId').as('mapProcessId'),
           s
             .ref('W3ChampionsMatch.players')
             .$castTo<PrismaJson.W3ChampionsMatchPlayer[]>()
@@ -45,7 +37,7 @@ export function exec({ kysely, moduleRef, logger }: MigrationContext) {
               .select('pp.name as name'),
           ).as('players'),
         ])
-        .limit(200)
+        .limit(20)
         .orderBy('Match.id', 'asc');
 
       const data = await query.execute();
@@ -63,42 +55,68 @@ export function exec({ kysely, moduleRef, logger }: MigrationContext) {
           continue;
         }
 
+        const localUpdate = Array<(typeof update)[number]>();
+
         for (const player of players) {
           const { name, place: _, ...restPlayer } = player;
           const w3player = w3players.find((p) => p.name === name);
           if (!w3player || !w3player.place) continue;
 
-          update.push({
+          localUpdate.push({
             ...restPlayer,
             place: w3player.place,
           });
         }
+
+        if (localUpdate.length === players.length) {
+          update.push(...localUpdate);
+          continue;
+        }
+
+        // Broken match, remove it
+        logger.log(`Removing broken match ${match.id}`);
+        // @ts-expect-error kysely typing
+        await kysely.deleteFrom('Match').where('id', '=', match.id).execute();
       }
 
       if (update.length) {
-        await kysely
-          .updateTable('Player')
-          .set({
-            place: sql`place + 100`,
-          })
-          .where(
-            'id',
-            'in',
-            update.map((i) => i.id),
-          )
-          .execute();
+        try {
+          await kysely
+            .updateTable('Player')
+            .set({
+              place: sql`place + 100`,
+            })
+            .where(
+              'id',
+              'in',
+              update.map((i) => i.id),
+            )
+            .execute();
 
-        await kysely
-          .insertInto('Player')
-          .values(update)
-          .onConflict((oc) =>
-            oc.column('id').doUpdateSet((us) => ({
-              place: us.ref('excluded.place'),
-            })),
-          )
-          .execute();
+          await kysely
+            .insertInto('Player')
+            .values(update)
+            .onConflict((oc) =>
+              oc.column('id').doUpdateSet((us) => ({
+                place: us.ref('excluded.place'),
+              })),
+            )
+            .execute();
 
-        logger.debug(`Updated ${update.length} players`);
+          logger.debug(`Updated ${update.length} players`);
+        } catch (e) {
+          await kysely
+            .deleteFrom('Match')
+            .where(
+              'id',
+              'in',
+              // @ts-expect-error kysely typings
+              data.map(({ id }) => id),
+            )
+            .execute();
+
+          logger.error('Failed to update players, removing matches');
+        }
       }
     }
   })();

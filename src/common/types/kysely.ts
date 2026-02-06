@@ -32,7 +32,9 @@ export const PlayerEvents = {
     UP_BARRACK2: "UP_BARRACK2",
     UP_BARRACK3: "UP_BARRACK3",
     UP_BARRACK4: "UP_BARRACK4",
-    USE_ULTIMATE: "USE_ULTIMATE"
+    USE_ULTIMATE: "USE_ULTIMATE",
+    UNIT_BUY: "UNIT_BUY",
+    CANCEL_UPGRADE: "CANCEL_UPGRADE"
 } as const;
 export type PlayerEvents = (typeof PlayerEvents)[keyof typeof PlayerEvents];
 export type DatabaseDump = {
@@ -55,6 +57,7 @@ export type MapVersion = {
     mapVersion: string | null;
     mapPatch: string | null;
     dataKey: string | null;
+    bonusCount: Generated<number>;
     ignore: Generated<boolean>;
 };
 export type Match = {

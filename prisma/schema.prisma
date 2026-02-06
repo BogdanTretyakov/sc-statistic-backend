@@ -91,7 +91,7 @@ model Player {
   raceId           String         @db.VarChar(4)
   mmr              Int?
   quantile         Int?           @db.SmallInt
-  match            Match          @relation(fields: [matchId], references: [id])
+  match            Match          @relation(fields: [matchId], references: [id], onDelete: Cascade)
   platformPlayer   PlatformPlayer @relation(fields: [platformPlayerId], references: [id])
   playerDatas      PlayerData[]
   events           PlayerEvent[]
@@ -105,7 +105,7 @@ model PlayerData {
   playerId BigInt
   type     PlayerDataType
   value    String         @db.VarChar(4)
-  player   Player         @relation(fields: [playerId], references: [id])
+  player   Player         @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@id([playerId, type, value])
 }
@@ -127,7 +127,7 @@ model PlayerEvent {
   eventId       String       @db.VarChar(4)
   /// Milliseconds from match start
   time          Int
-  player        Player       @relation(fields: [playerMatchId], references: [id])
+  player        Player       @relation(fields: [playerMatchId], references: [id], onDelete: Cascade)
 
   @@id([playerMatchId, eventType, eventId, time])
   @@index([eventType, eventId, playerMatchId], map: "idx_event_type_id_player")
