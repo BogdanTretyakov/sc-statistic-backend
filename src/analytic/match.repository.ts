@@ -37,32 +37,69 @@ export class MatchRepository {
   public async searchMatches(dto: SearchMatchesDto) {
     const baseQuery = addMatchFilter(dto, this.kysely.selectFrom('Match'));
 
-    const filteredQuery = dto.filters.reduce((query, filter) => {
-      return query.where((eb) =>
-        eb.exists(
-          eb
-            .selectFrom('Player as p')
-            .innerJoin('PlatformPlayer as pp', 'pp.id', 'p.platformPlayerId')
-            .select('p.id')
-            .whereRef('p.matchId', '=', 'Match.id')
-            .$if(!!filter.playerId, (q) =>
-              q.where('pp.id', '=', filter.playerId!),
-            )
-            .$if(!!filter.race, (q) => q.where('p.raceId', '=', filter.race!))
-            .$if(!!filter.bonus, (q) =>
-              q
-                .innerJoin('PlayerData as pd', 'pd.playerId', 'p.id')
-                .where(
-                  'pd.type',
-                  '=',
-                  sql<PlayerDataType>`${PlayerDataType.BONUS}::"PlayerDataType"`,
-                )
-                .where('pd.value', '=', filter.bonus!),
-            )
-            .$if(!!filter.place, (q) => q.where('p.place', '=', filter.place!)),
-        ),
-      );
-    }, baseQuery);
+    let filteredQuery = baseQuery;
+
+    if (dto.filters.length > 0) {
+      filteredQuery = filteredQuery.where((eb) => {
+        let sub: any = eb
+          .selectFrom('Player as p0')
+          .whereRef('p0.matchId', '=', 'Match.id')
+          .select('p0.id');
+
+        const applyConditions = (
+          query: any,
+          filter: SearchMatchesDto['filters'][0],
+          idx: number,
+        ) => {
+          const alias = `p${idx}`;
+          if (filter.playerId) {
+            query = query.where(
+              `${alias}.platformPlayerId`,
+              '=',
+              filter.playerId,
+            );
+          }
+          if (filter.race) {
+            query = query.where(`${alias}.raceId`, '=', filter.race);
+          }
+          if (filter.place) {
+            query = query.where(`${alias}.place`, '=', filter.place);
+          }
+          if (filter.bonus) {
+            const bonusAlias = `pd${idx}`;
+            query = query
+              .innerJoin(
+                `PlayerData as ${bonusAlias}`,
+                `${bonusAlias}.playerId`,
+                `${alias}.id`,
+              )
+              .where(
+                `${bonusAlias}.type`,
+                '=',
+                sql<PlayerDataType>`${PlayerDataType.BONUS}::"PlayerDataType"`,
+              )
+              .where(`${bonusAlias}.value`, '=', filter.bonus);
+          }
+          return query;
+        };
+
+        sub = applyConditions(sub, dto.filters[0], 0);
+
+        for (let i = 1; i < dto.filters.length; i++) {
+          const alias = `p${i}`;
+          sub = sub.innerJoin(`Player as ${alias}`, (join: any) => {
+            let j = join.onRef(`${alias}.matchId`, '=', 'Match.id');
+            for (let k = 0; k < i; k++) {
+              j = j.onRef(`${alias}.id`, '!=', `p${k}.id`);
+            }
+            return j;
+          });
+          sub = applyConditions(sub, dto.filters[i], i);
+        }
+
+        return eb.exists(sub);
+      }) as unknown as typeof baseQuery;
+    }
 
     const query = filteredQuery
       .innerJoin('MapProcess', 'Match.mapProcessId', 'MapProcess.id')
