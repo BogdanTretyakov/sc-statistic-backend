@@ -113,13 +113,14 @@
       renderTable();
     } catch(e) {
       console.error('Fetch error:', e);
+    } finally {
+      setTimeout(fetchData, 5000);
     }
   }
 
   // Инициализация
   renderTypeFilters();
   fetchData();
-  setInterval(fetchData, 5000);
 })();
 </script>
 <style>

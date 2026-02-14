@@ -20,12 +20,12 @@ export class BufferedLogger extends ConsoleLogger {
     debug: [],
   };
   private defaultMaxSize: Record<LogLevel, number> = {
-    fatal: 500,
-    error: 500,
-    warn: 500,
+    fatal: 300,
+    error: 300,
+    warn: 300,
     log: 500,
-    verbose: 200,
-    debug: 200,
+    verbose: 100,
+    debug: 100,
   };
 
   constructor() {
