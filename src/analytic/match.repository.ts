@@ -161,6 +161,7 @@ export class MatchRepository {
                   sql<PlayerDataType>`${PlayerDataType.ULTIMATE}::"PlayerDataType"`,
                 )
                 .select('pd.value')
+                .limit(1)
                 .as('ultimate'),
               sp
                 .selectFrom('PlayerData as pd')
@@ -171,6 +172,7 @@ export class MatchRepository {
                   sql<PlayerDataType>`${PlayerDataType.AURA}::"PlayerDataType"`,
                 )
                 .select('pd.value')
+                .limit(1)
                 .as('aura'),
             ])
             .$if(dto.events, (q) =>
