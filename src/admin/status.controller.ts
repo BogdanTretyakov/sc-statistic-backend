@@ -96,7 +96,7 @@ export class StatusController {
     const items = this.logger.getLogs();
 
     if (json === undefined) {
-      return res.render('logs', { items });
+      return res.render('logs');
     }
 
     return res.json({ items });

@@ -5,6 +5,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { resolve } from 'path';
 import { BufferedLogger } from './common/bufferLogger.service';
 import { ValidationPipe } from '@nestjs/common';
+import compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -18,6 +19,9 @@ async function bootstrap() {
 
   // Custom logger
   app.useLogger(app.get(BufferedLogger));
+
+  // Enable gzip compression
+  app.use(compression());
 
   // EJS renderer
   app.setBaseViewsDir(resolve(process.cwd(), 'views'));
