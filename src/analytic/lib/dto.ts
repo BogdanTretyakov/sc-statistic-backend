@@ -7,6 +7,7 @@ import {
   IsBoolean,
   IsDate,
   IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -156,4 +157,12 @@ export class SearchMatchesDto extends BaseAnalyticDto {
   @IsOptional()
   @IsBoolean()
   events = false;
+}
+
+export class SearchMatchByPlatformDto {
+  @IsIn(['internal'].concat(Object.values(MatchPlatform)))
+  platform: MatchPlatform | 'internal';
+
+  @IsNotEmpty()
+  id: string;
 }

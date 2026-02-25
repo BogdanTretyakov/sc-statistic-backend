@@ -1,6 +1,18 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { MatchRepository } from './match.repository';
-import { PlayerSearchDto, SearchMatchesDto } from './lib/dto';
+import {
+  PlayerSearchDto,
+  SearchMatchesDto,
+  SearchMatchByPlatformDto,
+} from './lib/dto';
 
 @Controller('/match')
 export class MatchController {
@@ -16,9 +28,20 @@ export class MatchController {
     return this.repo.searchMatches(dto);
   }
 
-  @Get('/events/:id')
-  async getMatchEvents(@Param('id') id: string) {
-    const matchId = BigInt(id);
-    return this.repo.getMatchEvents(matchId);
+  @Get('/get/:platform/:id')
+  async getMatchByPlatform(
+    @Param() { id, platform }: SearchMatchByPlatformDto,
+  ) {
+    try {
+      const { id: internalId } = await this.repo.findInternalIdByPlatform(
+        id,
+        platform,
+      );
+      return await this.repo.getMatch(BigInt(internalId));
+    } catch (e) {
+      throw new NotFoundException(
+        `Match ${id} not found for platform ${platform}`,
+      );
+    }
   }
 }
