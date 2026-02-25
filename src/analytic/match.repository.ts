@@ -49,6 +49,17 @@ export class MatchRepository {
     private kysely: KyselyService,
   ) {}
 
+  public async getPlayer(id: number) {
+    return this.prisma.platformPlayer.findUniqueOrThrow({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        platform: true,
+      },
+    });
+  }
+
   public async searchPlayerByName(name: string) {
     const players = await this.prisma.platformPlayer.findMany({
       where: {

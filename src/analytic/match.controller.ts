@@ -23,6 +23,15 @@ export class MatchController {
     return this.repo.searchPlayerByName(name);
   }
 
+  @Get('/player/:id')
+  async player(@Param('id') id: string) {
+    try {
+      return await this.repo.getPlayer(Number(id));
+    } catch (e) {
+      throw new NotFoundException(`Player ${id} not found`);
+    }
+  }
+
   @Post('/filter')
   async filterMatch(@Body() dto: SearchMatchesDto) {
     return this.repo.searchMatches(dto);
