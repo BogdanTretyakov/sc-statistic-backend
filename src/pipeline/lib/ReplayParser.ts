@@ -86,6 +86,7 @@ export class ReplayParser {
     barrack: new Map<string, PlayerEvents>(),
     baseUpgrades: new Set<string>(),
     towerUpgrades: new Set<string>(),
+    bonusUpgrades: new Set<string>(),
     fort: new Map<string, PlayerEvents>(),
     ultimates: {} as Record<string, string>,
     raceByPicker: new Map<string, string>(),
@@ -158,6 +159,7 @@ export class ReplayParser {
         ),
       ),
       towerUpgrades: new Set(raceDataArr.flatMap((r) => r.towerUpgrades)),
+      bonusUpgrades: new Set(raceDataArr.flatMap((r) => r.bonusUpgrades)),
       fort: new Map(
         raceDataArr.flatMap((r) =>
           r.buildings.fort
@@ -509,6 +511,14 @@ export class ReplayParser {
         this.insertEvent(playerState, {
           eventId: id,
           eventType: PlayerEvents.TOWER_UPGRADE,
+          time: this.duration,
+        });
+      }
+      // Bonus upgrades
+      if (this.lookup.bonusUpgrades.has(id)) {
+        this.insertEvent(playerState, {
+          eventId: id,
+          eventType: PlayerEvents.BONUS_UPGRADE,
           time: this.duration,
         });
       }

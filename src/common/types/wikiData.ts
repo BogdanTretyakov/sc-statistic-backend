@@ -16,6 +16,7 @@ export interface RaceMapping {
     wall: string;
   };
   towerUpgrades: string[];
+  bonusUpgrades: string[];
   heroes: string[];
   bonuses: string[];
   buildings: {

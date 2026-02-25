@@ -184,4 +184,5 @@ enum PlayerEvents {
   USE_ULTIMATE
   UNIT_BUY
   CANCEL_UPGRADE
+  BONUS_UPGRADE
 }

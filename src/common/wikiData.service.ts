@@ -217,6 +217,9 @@ export class WikiDataService implements OnModuleInit {
           },
           bonuses: data.bonuses.map(pickId),
           towerUpgrades: data.towerUpgrades.map(pickId),
+          bonusUpgrades: data.bonuses
+            .flatMap((item) => item.upgrades ?? [])
+            .map(pickId),
           units: {
             melee: data.units.melee.id,
             range: data.units.range.id,
